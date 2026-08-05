@@ -9,8 +9,8 @@ const runForecastJob = async () => {
     const orgs = await Organization.find({ isActive: true });
     for (const org of orgs) {
       try {
-        await forecastService.generateDemandForecast(org._id, 'daily', 7);
-        await forecastService.generateWorkloadForecast(org._id, 'daily', 7);
+        await forecastService.generateDemandForecast(org._id, { period: 'daily', horizon: 7 });
+        await forecastService.generateWorkloadForecast(org._id, { period: 'daily', horizon: 7 });
         console.log(`[ForecastJob] Completed forecasts for org: ${org.name}`);
       } catch (err) {
         console.error(`[ForecastJob] Error for org ${org.name}:`, err.message);

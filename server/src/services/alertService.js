@@ -1,5 +1,6 @@
 const Alert = require('../models/Alert');
 const getPagination = require('../utils/pagination');
+const ApiError = require('../utils/ApiError');
 
 const alertService = {
   create: async (data, organizationId) => {
@@ -9,38 +10,44 @@ const alertService = {
     return alert;
   },
 
-  getAll: async (organizationId, filters) => {
+  getAll: async (organizationId, filters = {}) => {
     const { page = 1, limit = 10, type, severity, acknowledged } = filters;
     const { skip, limit: limitNum } = getPagination(page, limit);
-    
+
     const query = { organization: organizationId };
     if (type) query.type = type;
     if (severity) query.severity = severity;
     if (acknowledged !== undefined) query.acknowledged = acknowledged === 'true';
 
-    const items = await Alert.find(query).skip(skip).limit(limitNum).sort({ createdAt: -1 });
+    const items = await Alert.find(query).sort({ createdAt: -1 }).skip(skip).limit(limitNum);
     const total = await Alert.countDocuments(query);
-    return { items, total, page, limit: limitNum, totalPages: Math.ceil(total / limitNum) };
+    return { items, total, page: Number(page), limit: limitNum, totalPages: Math.ceil(total / limitNum) };
   },
 
   getById: async (id, organizationId) => {
-    return await Alert.findOne({ _id: id, organization: organizationId });
+    const alert = await Alert.findOne({ _id: id, organization: organizationId });
+    if (!alert) throw new ApiError(404, 'Alert not found');
+    return alert;
   },
 
   acknowledge: async (id, userId, organizationId) => {
-    return await Alert.findOneAndUpdate(
+    const alert = await Alert.findOneAndUpdate(
       { _id: id, organization: organizationId },
       { acknowledged: true, acknowledgedBy: userId, acknowledgedAt: new Date() },
       { new: true }
     );
+    if (!alert) throw new ApiError(404, 'Alert not found');
+    return alert;
   },
 
-  resolve: async (id, userId, organizationId) => {
-    return await Alert.findOneAndUpdate(
+  resolve: async (id, body, userId, organizationId) => {
+    const alert = await Alert.findOneAndUpdate(
       { _id: id, organization: organizationId },
       { resolvedAt: new Date(), resolvedBy: userId },
       { new: true }
     );
+    if (!alert) throw new ApiError(404, 'Alert not found');
+    return alert;
   },
 
   getActiveAlerts: async (organizationId) => {

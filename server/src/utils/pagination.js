@@ -1,22 +1,8 @@
-const pagination = async (model, query = {}, page = 1, limit = 10, sort = { createdAt: -1 }) => {
-  const skip = (page - 1) * limit;
-
-  const [data, totalCount] = await Promise.all([
-    model.find(query).sort(sort).skip(skip).limit(limit),
-    model.countDocuments(query)
-  ]);
-
-  const totalPages = Math.ceil(totalCount / limit);
-
-  return {
-    data,
-    pagination: {
-      page: Number(page),
-      limit: Number(limit),
-      totalPages,
-      totalCount
-    }
-  };
+const getPagination = (page = 1, limit = 10) => {
+  const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+  const limitNum = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
+  const skip = (pageNum - 1) * limitNum;
+  return { skip, limit: limitNum };
 };
 
-module.exports = pagination;
+module.exports = getPagination;

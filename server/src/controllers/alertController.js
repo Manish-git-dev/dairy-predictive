@@ -29,7 +29,7 @@ const getById = async (req, res, next) => {
 
 const acknowledge = async (req, res, next) => {
   try {
-    const result = await alertService.acknowledge(req.params.id, req.organizationId, req.user.id);
+    const result = await alertService.acknowledge(req.params.id, req.user.id, req.organizationId);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -38,7 +38,7 @@ const acknowledge = async (req, res, next) => {
 
 const resolve = async (req, res, next) => {
   try {
-    const result = await alertService.resolve(req.params.id, req.body, req.organizationId, req.user.id);
+    const result = await alertService.resolve(req.params.id, req.body, req.user.id, req.organizationId);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);

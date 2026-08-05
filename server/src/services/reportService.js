@@ -3,68 +3,100 @@ const QualityTest = require('../models/QualityTest');
 const Payment = require('../models/Payment');
 const Batch = require('../models/Batch');
 const Inventory = require('../models/Inventory');
+const AnomalyEvent = require('../models/AnomalyEvent');
+const csvExport = require('../utils/csvExport');
+const ApiError = require('../utils/ApiError');
 
 const reportService = {
-  generateReport: async (type, startDate, endDate, format, organizationId) => {
-    let data = [];
-    const dateQuery = { 
+  generateReport: async (organizationId, options = {}) => {
+    let { type, format = 'json', filters = {} } = options;
+    const startDate = filters.startDate || options.startDate;
+    const endDate = filters.endDate || options.endDate;
+
+    const dateQuery = {
       organization: organizationId,
       createdAt: { $gte: new Date(startDate), $lte: new Date(endDate) }
     };
 
+    let data = [];
+    let columns = [];
+
     switch (type) {
       case 'collection':
-        data = await MilkLot.find(dateQuery).populate('farmer collectionCentre').lean();
+        data = await MilkLot.find(dateQuery).populate('farmer', 'firstName lastName').lean();
+        columns = [
+          { header: 'Lot ID', key: 'lotId' },
+          { header: 'Farmer', key: 'farmer' },
+          { header: 'Quantity (L)', key: 'quantityLitres' },
+          { header: 'Status', key: 'status' },
+          { header: 'Date', key: 'collectionDate' }
+        ];
         break;
       case 'quality':
-        data = await QualityTest.find(dateQuery).populate('milkLot').lean();
+        data = await QualityTest.find(dateQuery).populate('milkLot', 'lotId').lean();
+        columns = [
+          { header: 'Test ID', key: 'testId' },
+          { header: 'Lot ID', key: 'milkLot' },
+          { header: 'Grade', key: 'grade' },
+          { header: 'Result', key: 'result' },
+          { header: 'Date', key: 'testDate' }
+        ];
         break;
       case 'payment':
-        data = await Payment.find(dateQuery).populate('farmer').lean();
+        data = await Payment.find(dateQuery).populate('farmer', 'firstName lastName').lean();
+        columns = [
+          { header: 'Payment ID', key: 'paymentId' },
+          { header: 'Farmer', key: 'farmer' },
+          { header: 'Amount', key: 'netAmount' },
+          { header: 'Status', key: 'status' },
+          { header: 'Date', key: 'createdAt' }
+        ];
         break;
       case 'production':
-        data = await Batch.find(dateQuery).populate('product').lean();
+        data = await Batch.find(dateQuery).populate('product', 'name').lean();
+        columns = [
+          { header: 'Batch ID', key: 'batchId' },
+          { header: 'Product', key: 'product' },
+          { header: 'Quantity', key: 'totalQuantity' },
+          { header: 'Yield', key: 'plantYield' },
+          { header: 'Status', key: 'status' }
+        ];
         break;
       case 'inventory':
-        // Inventory might not use dateQuery if it's current stock
-        data = await Inventory.find({ organization: organizationId }).populate('product').lean();
+        data = await Inventory.find({ organization: organizationId }).populate('product', 'name').lean();
+        columns = [
+          { header: 'Product', key: 'product' },
+          { header: 'Quantity', key: 'quantity' },
+          { header: 'Status', key: 'status' },
+          { header: 'Expiry', key: 'expiryDate' }
+        ];
         break;
       case 'anomaly':
-        // Assuming AnomalyEvent model
-        const mongoose = require('mongoose');
-        const AnomalyEvent = mongoose.models.AnomalyEvent;
-        if (AnomalyEvent) {
-          data = await AnomalyEvent.find(dateQuery).lean();
-        }
+        data = await AnomalyEvent.find(dateQuery).lean();
+        columns = [
+          { header: 'Anomaly ID', key: 'anomalyId' },
+          { header: 'Type', key: 'type' },
+          { header: 'Severity', key: 'severity' },
+          { header: 'Risk Score', key: 'riskScore' },
+          { header: 'Status', key: 'status' }
+        ];
         break;
       default:
-        throw new Error('Invalid report type');
+        throw new ApiError(400, 'Invalid report type');
     }
 
-    let result = { 
-      data, 
-      metadata: { 
-        type, 
-        period: { startDate, endDate }, 
-        generatedAt: new Date(), 
-        recordCount: data.length 
-      }
+    const result = {
+      metadata: {
+        type,
+        period: { startDate, endDate },
+        generatedAt: new Date(),
+        recordCount: data.length
+      },
+      data
     };
 
     if (format === 'csv') {
-      // Very simple CSV conversion logic for demonstration
-      if (data.length > 0) {
-        const headers = Object.keys(data[0]).filter(k => typeof data[0][k] !== 'object').join(',');
-        const rows = data.map(row => {
-          return Object.keys(row)
-            .filter(k => typeof row[k] !== 'object')
-            .map(k => `"${row[k]}"`)
-            .join(',');
-        }).join('\n');
-        result.csv = `${headers}\n${rows}`;
-      } else {
-        result.csv = '';
-      }
+      result.csv = csvExport(data, columns);
     }
 
     return result;

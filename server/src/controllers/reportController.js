@@ -8,7 +8,7 @@ const generateReport = async (req, res, next) => {
     if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename=report-${Date.now()}.csv`);
-      return res.status(200).send(result);
+      return res.status(200).send(result.csv || '');
     }
     
     res.status(200).json({ success: true, data: result });

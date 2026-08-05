@@ -47,7 +47,7 @@ const deleteTanker = async (req, res, next) => {
 
 const updateStatus = async (req, res, next) => {
   try {
-    const result = await tankerService.updateStatus(req.params.id, req.body.status, req.organizationId);
+    const result = await tankerService.updateStatus(req.params.id, req.body.status, req.organizationId, req.user.id);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);

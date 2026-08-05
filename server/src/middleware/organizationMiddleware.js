@@ -9,4 +9,4 @@ const organizationMiddleware = (req, res, next) => {
   next();
 };
 
-module.exports = organizationMiddleware;
+module.exports = { setOrganization: organizationMiddleware };

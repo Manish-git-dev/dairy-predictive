@@ -56,7 +56,7 @@ const assign = async (req, res, next) => {
 
 const addNote = async (req, res, next) => {
   try {
-    const result = await taskService.addNote(req.params.id, req.body.note, req.organizationId, req.user.id);
+    const result = await taskService.addNote(req.params.id, req.body.text, req.user.id, req.organizationId);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);

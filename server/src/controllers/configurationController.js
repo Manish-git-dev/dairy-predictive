@@ -20,8 +20,8 @@ const get = async (req, res, next) => {
 
 const set = async (req, res, next) => {
   try {
-    const { value } = req.body;
-    const result = await configurationService.set(req.params.key, value, req.organizationId);
+    const { value, category, description } = req.body;
+    const result = await configurationService.set(req.params.key, value, category, description, req.user.id, req.organizationId);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);

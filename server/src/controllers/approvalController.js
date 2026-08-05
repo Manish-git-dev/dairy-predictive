@@ -30,7 +30,7 @@ const getPending = async (req, res, next) => {
 const review = async (req, res, next) => {
   try {
     const { status, comments } = req.body;
-    const result = await approvalService.review(req.params.id, { status, comments }, req.organizationId, req.user.id);
+    const result = await approvalService.review(req.params.id, req.body, req.user.id, req.organizationId);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);

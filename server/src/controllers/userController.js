@@ -38,8 +38,9 @@ const update = async (req, res, next) => {
 
 const changePassword = async (req, res, next) => {
   try {
-    const { oldPassword, newPassword } = req.body;
-    const result = await userService.changePassword(req.user.id, { oldPassword, newPassword }, req.organizationId);
+    const { currentPassword, newPassword } = req.body;
+    const oldPassword = currentPassword;
+    const result = await userService.changePassword(req.user.id, oldPassword, newPassword);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);

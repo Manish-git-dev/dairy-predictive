@@ -1,28 +1,18 @@
-const mongoose = require('mongoose');
-
-// Define generic schema if missing
-const Config = mongoose.models.Config || mongoose.model('Config', new mongoose.Schema({
-  organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
-  key: { type: String, required: true },
-  value: { type: mongoose.Schema.Types.Mixed },
-  category: String,
-  description: String,
-  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
-}, { timestamps: true }));
+const Configuration = require('../models/Configuration');
 
 const configurationService = {
   getAll: async (organizationId, category) => {
     const query = { organization: organizationId };
     if (category) query.category = category;
-    return await Config.find(query);
+    return await Configuration.find(query).sort({ category: 1, key: 1 });
   },
 
   get: async (key, organizationId) => {
-    return await Config.findOne({ key, organization: organizationId });
+    return await Configuration.findOne({ key, organization: organizationId });
   },
 
   set: async (key, value, category, description, userId, organizationId) => {
-    return await Config.findOneAndUpdate(
+    return await Configuration.findOneAndUpdate(
       { key, organization: organizationId },
       { value, category, description, updatedBy: userId },
       { new: true, upsert: true }
@@ -30,11 +20,11 @@ const configurationService = {
   },
 
   delete: async (key, organizationId) => {
-    return await Config.findOneAndDelete({ key, organization: organizationId });
+    return await Configuration.findOneAndDelete({ key, organization: organizationId });
   },
 
   getBulk: async (keys, organizationId) => {
-    return await Config.find({ key: { $in: keys }, organization: organizationId });
+    return await Configuration.find({ key: { $in: keys }, organization: organizationId });
   }
 };
 

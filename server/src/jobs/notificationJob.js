@@ -4,9 +4,7 @@ const SlaRule = require('../models/SlaRule');
 const Alert = require('../models/Alert');
 const Notification = require('../models/Notification');
 const Organization = require('../models/Organization');
-const { v4: uuidv4 } = require('uuid'); // NO! Don't use uuid. Use a simple ID generator.
 
-// Use a simple counter-based ID generation:
 const generateId = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
 const runNotificationJob = async () => {

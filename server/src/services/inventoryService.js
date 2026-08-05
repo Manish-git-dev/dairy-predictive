@@ -1,5 +1,6 @@
 const Inventory = require('../models/Inventory');
 const getPagination = require('../utils/pagination');
+const ApiError = require('../utils/ApiError');
 
 const inventoryService = {
   create: async (data, organizationId) => {
@@ -8,45 +9,53 @@ const inventoryService = {
     return item;
   },
 
-  getAll: async (organizationId, filters) => {
+  getAll: async (organizationId, filters = {}) => {
     const { page = 1, limit = 10, status } = filters;
     const { skip, limit: limitNum } = getPagination(page, limit);
-    
+
     const query = { organization: organizationId };
     if (status) query.status = status;
 
-    const items = await Inventory.find(query).populate('product batch').skip(skip).limit(limitNum);
+    const items = await Inventory.find(query).populate('product batch').skip(skip).limit(limitNum).sort({ createdAt: -1 });
     const total = await Inventory.countDocuments(query);
-    return { items, total, page, limit: limitNum, totalPages: Math.ceil(total / limitNum) };
+    return { items, total, page: Number(page), limit: limitNum, totalPages: Math.ceil(total / limitNum) };
   },
 
   getById: async (id, organizationId) => {
-    return await Inventory.findOne({ _id: id, organization: organizationId }).populate('product batch');
+    const item = await Inventory.findOne({ _id: id, organization: organizationId }).populate('product batch');
+    if (!item) throw new ApiError(404, 'Inventory item not found');
+    return item;
   },
 
   update: async (id, data, organizationId) => {
-    return await Inventory.findOneAndUpdate({ _id: id, organization: organizationId }, data, { new: true });
+    const item = await Inventory.findOneAndUpdate({ _id: id, organization: organizationId }, data, { new: true });
+    if (!item) throw new ApiError(404, 'Inventory item not found');
+    return item;
   },
 
-  adjustStock: async (id, quantity, organizationId) => {
-    return await Inventory.findOneAndUpdate(
+  adjustStock: async (id, body, organizationId) => {
+    const quantity = body.quantity || body.adjustment || 0;
+    const item = await Inventory.findOneAndUpdate(
       { _id: id, organization: organizationId },
-      { $inc: { quantity: quantity } },
+      { $inc: { quantity } },
       { new: true }
     );
+    if (!item) throw new ApiError(404, 'Inventory item not found');
+    return item;
   },
 
   getLowStock: async (organizationId) => {
-    return await Inventory.find({ 
+    return await Inventory.find({
       organization: organizationId,
       $expr: { $lte: ['$quantity', '$reorderPoint'] }
     }).populate('product');
   },
 
-  getExpiringSoon: async (organizationId, days = 7) => {
+  getExpiringSoon: async (organizationId, filters = {}) => {
+    const { days = 7 } = filters;
     const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + days);
-    
+    expiryDate.setDate(expiryDate.getDate() + Number(days));
+
     return await Inventory.find({
       organization: organizationId,
       expiryDate: { $lte: expiryDate, $gt: new Date() }
