@@ -7,7 +7,7 @@ const USER_ROLES = ['ops_admin', 'manager', 'analyst', 'field_staff'];
 
 const userService = {
   create: async (data, organizationId) => {
-    const { password, role, email } = data;
+    const { role, email } = data;
     if (!USER_ROLES.includes(role)) throw new ApiError(400, 'Invalid user role');
 
     const roleRecord = await Role.findOne({ name: role, organization: organizationId }).select('_id');
@@ -16,7 +16,7 @@ const userService = {
     const existing = await User.findOne({ email: email.toLowerCase(), organization: organizationId }).select('_id');
     if (existing) throw new ApiError(409, 'A user with this email already exists in this organization');
 
-    const user = new User({ ...data, email: email.toLowerCase(), password, organization: organizationId });
+    const user = new User({ ...data, email: email.toLowerCase(), organization: organizationId });
     await user.save();
     return user;
   },
@@ -71,10 +71,6 @@ const userService = {
     delete update.password;
     delete update.organization;
     delete update.refreshToken;
-
-    if (user.isSystem && update.role && update.role !== user.role) {
-      throw new ApiError(403, 'System user role cannot be changed');
-    }
 
     Object.assign(user, update);
     await user.save();
