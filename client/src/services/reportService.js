@@ -8,6 +8,14 @@ export const reportService = {
   generate: async (reportData) => {
     const response = await api.post('/reports/generate', reportData);
     return response.data;
+  },
+  downloadCsv: async (reportData) => {
+    const response = await api.post('/reports/generate', { ...reportData, format: 'csv' }, { responseType: 'blob' });
+    return response;
+  },
+  getHistory: async (params = {}) => {
+    const response = await api.get('/reports/history', { params });
+    return response.data;
   }
 };
 
