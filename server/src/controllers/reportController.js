@@ -2,15 +2,14 @@ const reportService = require('../services/reportService');
 
 const generateReport = async (req, res, next) => {
   try {
-    const { type, format, filters } = req.body;
-    const result = await reportService.generateReport(req.organizationId, { type, format, filters });
-    
+    const { type, format = 'preview', startDate, endDate, filters = {} } = req.body;
+    const options = { type, format, startDate, endDate, filters: { ...filters, startDate, endDate } };
+
     if (format === 'csv') {
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename=report-${Date.now()}.csv`);
-      return res.status(200).send(result.csv || '');
+      return await reportService.streamCsv(req.organizationId, req.user.id, options, res);
     }
-    
+
+    const result = await reportService.generateReport(req.organizationId, req.user.id, options);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -19,7 +18,15 @@ const generateReport = async (req, res, next) => {
 
 const getReportTypes = async (req, res, next) => {
   try {
-    const result = await reportService.getReportTypes(req.organizationId);
+    res.status(200).json({ success: true, data: reportService.getReportTypes() });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getHistory = async (req, res, next) => {
+  try {
+    const result = await reportService.getHistory(req.organizationId, req.query);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -28,5 +35,6 @@ const getReportTypes = async (req, res, next) => {
 
 module.exports = {
   generateReport,
-  getReportTypes
+  getReportTypes,
+  getHistory
 };
