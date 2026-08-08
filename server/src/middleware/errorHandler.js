@@ -25,9 +25,7 @@ const errorHandler = (err, req, res, next) => {
     error = new ApiError(400, `Validation Error: ${message}`);
   } else if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
     error = new ApiError(401, 'Token is invalid or expired');
-  } else if (err.name === 'MongoServerSelectionError' || err.name === 'MongooseServerSelectionError') {
-    error = new ApiError(503, 'Database service is temporarily unavailable', false);
-  } else if (err.name === 'MongoNetworkError' || err.name === 'MongooseError') {
+  } else if (err.name === 'MongoServerSelectionError' || err.name === 'MongooseServerSelectionError' || err.name === 'MongoNetworkError') {
     error = new ApiError(503, 'Database service is temporarily unavailable', false);
   }
 
