@@ -1,11 +1,16 @@
 const Batch = require('../models/Batch');
 const MilkLot = require('../models/MilkLot');
+const Product = require('../models/Product');
 const OperationalEvent = require('../models/OperationalEvent');
 const getPagination = require('../utils/pagination');
 const ApiError = require('../utils/ApiError');
+const { assertOrganizationReference, assertOrganizationReferences } = require('../utils/organizationReferences');
 
 const batchService = {
   create: async (data, organizationId) => {
+    await assertOrganizationReference(Product, data.product, organizationId, 'Product');
+    await assertOrganizationReferences(MilkLot, data.milkLots, organizationId, 'milk lots');
+
     const batchId = `BCH-${Date.now()}`;
     let totalQuantity = 0;
     let avgFat = 0, avgSnf = 0;
@@ -53,6 +58,8 @@ const batchService = {
   },
 
   update: async (id, data, organizationId) => {
+    await assertOrganizationReference(Product, data.product, organizationId, 'Product');
+    await assertOrganizationReferences(MilkLot, data.milkLots, organizationId, 'milk lots');
     const batch = await Batch.findOneAndUpdate({ _id: id, organization: organizationId }, data, { new: true });
     if (!batch) throw new ApiError(404, 'Batch not found');
     return batch;
