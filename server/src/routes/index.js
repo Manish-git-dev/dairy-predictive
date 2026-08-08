@@ -30,6 +30,7 @@ router.use('/dashboard', require('./dashboardRoutes'));
 router.use('/forecasts', require('./forecastRoutes'));
 router.use('/predictions', require('./predictionRoutes'));
 router.use('/anomalies', require('./anomalyRoutes'));
+router.use('/preventive-rules', require('./preventiveRuleRoutes'));
 router.use('/ai', require('./aiRoutes'));
 router.use('/approvals', require('./approvalRoutes'));
 router.use('/notifications', require('./notificationRoutes'));
