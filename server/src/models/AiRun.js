@@ -23,4 +23,8 @@ const aiRunSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true }
 }, { timestamps: true });
 
+aiRunSchema.index({ organization: 1, createdAt: -1 });
+aiRunSchema.index({ organization: 1, type: 1, createdAt: -1 });
+aiRunSchema.index({ organization: 1, status: 1, createdAt: -1 });
+
 module.exports = mongoose.model('AiRun', aiRunSchema);
