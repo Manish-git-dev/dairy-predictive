@@ -23,4 +23,9 @@ const paymentSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true }
 }, { timestamps: true });
 
+paymentSchema.index({ organization: 1, createdAt: -1 });
+paymentSchema.index({ organization: 1, farmer: 1, createdAt: -1 });
+paymentSchema.index({ organization: 1, status: 1, createdAt: -1 });
+paymentSchema.index({ organization: 1, 'period.startDate': 1, 'period.endDate': 1 });
+
 module.exports = mongoose.model('Payment', paymentSchema);
