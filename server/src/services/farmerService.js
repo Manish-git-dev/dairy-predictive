@@ -13,19 +13,24 @@ const farmerService = {
   getAll: async (organizationId, filters) => {
     const { page = 1, limit = 10, search } = filters;
     const { skip, limit: limitNum } = getPagination(page, limit);
-    
+
     const query = { organization: organizationId, isActive: true };
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { village: { $regex: search, $options: 'i' } },
-        { district: { $regex: search, $options: 'i' } }
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { 'address.village': { $regex: search, $options: 'i' } },
+        { 'address.district': { $regex: search, $options: 'i' } }
       ];
     }
 
-    const items = await Farmer.find(query).skip(skip).limit(limitNum);
+    const items = await Farmer.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
     const total = await Farmer.countDocuments(query);
-    return { items, total, page, limit: limitNum, totalPages: Math.ceil(total / limitNum) };
+    return { items, total, page: Number(page), limit: limitNum, totalPages: Math.ceil(total / limitNum) };
   },
 
   getById: async (id, organizationId) => {
@@ -33,32 +38,32 @@ const farmerService = {
   },
 
   update: async (id, data, organizationId) => {
-    return await Farmer.findOneAndUpdate({ _id: id, organization: organizationId }, data, { new: true });
+    return await Farmer.findOneAndUpdate({ _id: id, organization: organizationId }, data, { new: true, runValidators: true });
   },
 
   delete: async (id, organizationId) => {
-    return await Farmer.findOneAndUpdate({ _id: id, organization: organizationId }, { isActive: false }, { new: true });
+    return await Farmer.findOneAndUpdate({ _id: id, organization: organizationId }, { isActive: false }, { new: true, runValidators: true });
   },
 
   getPerformance: async (id, organizationId) => {
-    const lots = await MilkLot.find({ farmer: id, organization: organizationId });
-    let totalVolume = 0;
-    let avgFat = 0, totalFat = 0;
-    let rejectedCount = 0;
-
-    lots.forEach(lot => {
-      totalVolume += lot.quantityLitres || 0;
-      if (lot.quality && lot.quality.fat) totalFat += lot.quality.fat;
-      if (lot.status === 'rejected') rejectedCount++;
-    });
-
-    if (lots.length > 0) avgFat = totalFat / lots.length;
+    const [result] = await MilkLot.aggregate([
+      { $match: { farmer: id, organization: organizationId } },
+      {
+        $group: {
+          _id: null,
+          totalVolume: { $sum: { $ifNull: ['$quantityLitres', 0] } },
+          avgFat: { $avg: '$quality.fat' },
+          rejectedCount: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } },
+          totalLots: { $sum: 1 }
+        }
+      }
+    ]);
 
     return {
-      totalVolume,
-      avgFat,
-      rejectedCount,
-      totalLots: lots.length
+      totalVolume: Number(result?.totalVolume || 0),
+      avgFat: Number(result?.avgFat || 0),
+      rejectedCount: Number(result?.rejectedCount || 0),
+      totalLots: Number(result?.totalLots || 0)
     };
   }
 };
