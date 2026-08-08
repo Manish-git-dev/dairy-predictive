@@ -16,8 +16,7 @@ export const AuthProvider = ({ children }) => {
       const storedToken = storage.getToken();
       if (storedToken) {
         try {
-          const response = await authService.getCurrentUser();
-          const fetchedUser = response.data;
+          const fetchedUser = await authService.getCurrentUser();
           storage.setUser(fetchedUser);
           setUser(fetchedUser);
           setToken(storedToken);
@@ -40,8 +39,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     setLoading(true);
     try {
-      const response = await authService.login(email, password);
-      const { user: loggedInUser, token: authToken } = response.data;
+      const { user: loggedInUser, token: authToken } = await authService.login(email, password);
       storage.setToken(authToken);
       storage.setUser(loggedInUser);
       setUser(loggedInUser);
@@ -49,7 +47,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       return loggedInUser;
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || 'Login failed';
+      const errMsg = err.response?.data?.error?.message || err.message || 'Login failed';
       setError(errMsg);
       throw new Error(errMsg);
     } finally {
