@@ -9,7 +9,9 @@
     "test": "node --test test/integration/*.test.js",
     "test:integration": "node --test test/integration/*.test.js",
     "seed": "node src/seedGuard.js",
-    "seed:unsafe": "node src/seed.js"
+    "seed:unsafe": "node src/seed.js",
+    "db:audit": "node src/jobs/migrations/15-database-hardening.js",
+    "db:harden": "node src/jobs/migrations/15-database-hardening.js --apply"
   },
   "keywords": [],
   "author": "",
