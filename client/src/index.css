@@ -11,7 +11,6 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Enterprise SaaS design tokens */
   --ds-primary-50: #eff6ff;
   --ds-primary-100: #dbeafe;
   --ds-primary-200: #bfdbfe;
@@ -57,225 +56,71 @@
   --ds-shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04);
   --ds-shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.04);
   --ds-shadow-lg: 0 12px 30px -12px rgb(15 23 42 / 0.14), 0 4px 8px -4px rgb(15 23 42 / 0.06);
-
   --ds-focus-ring: 0 0 0 3px rgb(37 99 235 / 0.18);
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
+html { min-width: 320px; background: var(--ds-bg); }
+body { margin: 0; min-width: 320px; min-height: 100vh; overflow-x: hidden; background: var(--ds-bg); color: var(--ds-text); }
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ds-primary-600); outline-offset: 2px; box-shadow: var(--ds-focus-ring); }
+::selection { background: var(--ds-primary-100); color: var(--ds-primary-800); }
 
-html {
-  min-width: 320px;
-  background: var(--ds-bg);
-}
+/* Responsive safety rails used by every page. */
+img, svg, video, canvas { max-width: 100%; }
+input, select, textarea { max-width: 100%; }
+[role="dialog"] { overscroll-behavior: contain; }
+.recharts-responsive-container { min-width: 0 !important; }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background: var(--ds-bg);
-  color: var(--ds-text);
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
-button,
-a,
-input,
-select,
-textarea {
-  -webkit-tap-highlight-color: transparent;
-}
-
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--ds-primary-600);
-  outline-offset: 2px;
-  box-shadow: var(--ds-focus-ring);
-}
-
-::selection {
-  background: var(--ds-primary-100);
-  color: var(--ds-primary-800);
-}
-
-/* Reusable design-system primitives. */
 @layer components {
-  .ds-card {
-    @apply rounded-xl border bg-white;
-    border-color: var(--ds-border);
-    box-shadow: var(--ds-shadow-sm);
-  }
+  .ds-card { @apply rounded-xl border bg-white; border-color: var(--ds-border); box-shadow: var(--ds-shadow-sm); }
+  .ds-card-interactive { @apply transition duration-200; }
+  .ds-card-interactive:hover { border-color: var(--ds-border-strong); box-shadow: var(--ds-shadow-md); }
+  .ds-btn { @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition duration-150; }
+  .ds-btn:disabled { @apply cursor-not-allowed opacity-50; }
+  .ds-btn-primary { @apply ds-btn text-white; background: var(--ds-primary-600); }
+  .ds-btn-primary:hover:not(:disabled) { background: var(--ds-primary-700); }
+  .ds-btn-secondary { @apply ds-btn border bg-white text-slate-700; border-color: var(--ds-border-strong); }
+  .ds-btn-secondary:hover:not(:disabled) { background: var(--ds-surface-subtle); }
+  .ds-btn-ghost { @apply ds-btn text-slate-600; }
+  .ds-btn-ghost:hover:not(:disabled) { background: var(--ds-surface-muted); color: var(--ds-text); }
+  .ds-btn-danger { @apply ds-btn text-white; background: var(--ds-danger-600); }
+  .ds-btn-danger:hover:not(:disabled) { background: var(--ds-danger-700); }
+  .ds-input, .ds-select, .ds-textarea { @apply w-full rounded-lg border bg-white text-sm text-slate-900 transition placeholder:text-slate-400; border-color: var(--ds-border-strong); }
+  .ds-input, .ds-select { @apply h-10 px-3; }
+  .ds-textarea { @apply min-h-24 px-3 py-2; }
+  .ds-input:hover, .ds-select:hover, .ds-textarea:hover { border-color: #94a3b8; }
+  .ds-input:focus, .ds-select:focus, .ds-textarea:focus { border-color: var(--ds-primary-600); outline: none; box-shadow: var(--ds-focus-ring); }
+  .ds-input:disabled, .ds-select:disabled, .ds-textarea:disabled { @apply cursor-not-allowed bg-slate-100 text-slate-400; }
+  .ds-label { @apply mb-1.5 block text-sm font-medium text-slate-700; }
+  .ds-badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold leading-4; }
+  .ds-badge-neutral { @apply ds-badge bg-slate-100 text-slate-700; }
+  .ds-badge-primary { @apply ds-badge bg-blue-50 text-blue-700; }
+  .ds-badge-success { @apply ds-badge bg-emerald-50 text-emerald-700; }
+  .ds-badge-warning { @apply ds-badge bg-amber-50 text-amber-700; }
+  .ds-badge-danger { @apply ds-badge bg-rose-50 text-rose-700; }
+  .ds-alert { @apply rounded-lg border px-4 py-3 text-sm; }
+  .ds-alert-info { @apply ds-alert border-blue-200 bg-blue-50 text-blue-800; }
+  .ds-alert-success { @apply ds-alert border-emerald-200 bg-emerald-50 text-emerald-800; }
+  .ds-alert-warning { @apply ds-alert border-amber-200 bg-amber-50 text-amber-800; }
+  .ds-alert-danger { @apply ds-alert border-rose-200 bg-rose-50 text-rose-800; }
+  .ds-table { @apply w-full border-collapse text-left text-sm; }
+  .ds-table thead { @apply border-b bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500; }
+  .ds-table th { @apply px-4 py-3; }
+  .ds-table td { @apply border-b px-4 py-3.5 text-slate-700; border-color: var(--ds-border); }
+  .ds-table tbody tr:hover { background: var(--ds-surface-subtle); }
+  .ds-divider { height: 1px; background: var(--ds-border); }
+}
 
-  .ds-card-interactive {
-    @apply transition duration-200;
-  }
+@media (max-width: 639px) {
+  .ds-card { border-radius: 0.875rem; }
+  .ds-btn { min-height: 42px; }
+  .ds-table { min-width: 680px; }
+  .ds-table th { padding: 0.625rem 0.75rem; }
+  .ds-table td { padding: 0.75rem; white-space: nowrap; }
+}
 
-  .ds-card-interactive:hover {
-    border-color: var(--ds-border-strong);
-    box-shadow: var(--ds-shadow-md);
-  }
-
-  .ds-btn {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition duration-150;
-  }
-
-  .ds-btn:disabled {
-    @apply cursor-not-allowed opacity-50;
-  }
-
-  .ds-btn-primary {
-    @apply ds-btn text-white;
-    background: var(--ds-primary-600);
-  }
-
-  .ds-btn-primary:hover:not(:disabled) {
-    background: var(--ds-primary-700);
-  }
-
-  .ds-btn-secondary {
-    @apply ds-btn border bg-white text-slate-700;
-    border-color: var(--ds-border-strong);
-  }
-
-  .ds-btn-secondary:hover:not(:disabled) {
-    background: var(--ds-surface-subtle);
-  }
-
-  .ds-btn-ghost {
-    @apply ds-btn text-slate-600;
-  }
-
-  .ds-btn-ghost:hover:not(:disabled) {
-    background: var(--ds-surface-muted);
-    color: var(--ds-text);
-  }
-
-  .ds-btn-danger {
-    @apply ds-btn text-white;
-    background: var(--ds-danger-600);
-  }
-
-  .ds-btn-danger:hover:not(:disabled) {
-    background: var(--ds-danger-700);
-  }
-
-  .ds-input,
-  .ds-select,
-  .ds-textarea {
-    @apply w-full rounded-lg border bg-white text-sm text-slate-900 transition placeholder:text-slate-400;
-    border-color: var(--ds-border-strong);
-  }
-
-  .ds-input,
-  .ds-select {
-    @apply h-10 px-3;
-  }
-
-  .ds-textarea {
-    @apply min-h-24 px-3 py-2;
-  }
-
-  .ds-input:hover,
-  .ds-select:hover,
-  .ds-textarea:hover {
-    border-color: #94a3b8;
-  }
-
-  .ds-input:focus,
-  .ds-select:focus,
-  .ds-textarea:focus {
-    border-color: var(--ds-primary-600);
-    outline: none;
-    box-shadow: var(--ds-focus-ring);
-  }
-
-  .ds-input:disabled,
-  .ds-select:disabled,
-  .ds-textarea:disabled {
-    @apply cursor-not-allowed bg-slate-100 text-slate-400;
-  }
-
-  .ds-label {
-    @apply mb-1.5 block text-sm font-medium text-slate-700;
-  }
-
-  .ds-badge {
-    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold leading-4;
-  }
-
-  .ds-badge-neutral {
-    @apply ds-badge bg-slate-100 text-slate-700;
-  }
-
-  .ds-badge-primary {
-    @apply ds-badge bg-blue-50 text-blue-700;
-  }
-
-  .ds-badge-success {
-    @apply ds-badge bg-emerald-50 text-emerald-700;
-  }
-
-  .ds-badge-warning {
-    @apply ds-badge bg-amber-50 text-amber-700;
-  }
-
-  .ds-badge-danger {
-    @apply ds-badge bg-rose-50 text-rose-700;
-  }
-
-  .ds-alert {
-    @apply rounded-lg border px-4 py-3 text-sm;
-  }
-
-  .ds-alert-info {
-    @apply ds-alert border-blue-200 bg-blue-50 text-blue-800;
-  }
-
-  .ds-alert-success {
-    @apply ds-alert border-emerald-200 bg-emerald-50 text-emerald-800;
-  }
-
-  .ds-alert-warning {
-    @apply ds-alert border-amber-200 bg-amber-50 text-amber-800;
-  }
-
-  .ds-alert-danger {
-    @apply ds-alert border-rose-200 bg-rose-50 text-rose-800;
-  }
-
-  .ds-table {
-    @apply w-full border-collapse text-left text-sm;
-  }
-
-  .ds-table thead {
-    @apply border-b bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500;
-  }
-
-  .ds-table th {
-    @apply px-4 py-3;
-  }
-
-  .ds-table td {
-    @apply border-b px-4 py-3.5 text-slate-700;
-    border-color: var(--ds-border);
-  }
-
-  .ds-table tbody tr:hover {
-    background: var(--ds-surface-subtle);
-  }
-
-  .ds-divider {
-    height: 1px;
-    background: var(--ds-border);
-  }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
