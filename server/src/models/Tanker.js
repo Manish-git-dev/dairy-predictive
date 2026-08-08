@@ -26,4 +26,9 @@ const tankerSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true }
 }, { timestamps: true });
 
+tankerSchema.index({ organization: 1, createdAt: -1 });
+tankerSchema.index({ organization: 1, status: 1, createdAt: -1 });
+
+tankerSchema.index({ organization: 1, 'route.estimatedArrival': 1 });
+
 module.exports = mongoose.model('Tanker', tankerSchema);
