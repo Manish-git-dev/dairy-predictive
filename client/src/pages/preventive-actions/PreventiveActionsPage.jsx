@@ -1,50 +1,89 @@
-import React from "react";
-import useFetch from "../../hooks/useFetch";
-import settingsService from "../../services/settingsService";
-import LoadingSpinner from "../../components/common/LoadingSpinner";
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import preventiveRuleService from '../../services/preventiveRuleService';
+import userService from '../../services/userService';
+
+const initialForm = { name: '', description: '', metric: 'rejection_rate', operator: '>', threshold: '', severity: 'medium', action: '', owner: '', enabled: true, evaluationWindowHours: 24 };
+const metricLabels = { rejection_rate: 'Rejection rate', collection_volume: 'Collection volume', average_fat: 'Average fat', average_snf: 'Average SNF', temperature: 'Milk temperature', inventory_quantity: 'Inventory quantity', payment_total: 'Payment total', capacity_utilization: 'Tanker capacity utilization' };
+const severityClasses = { low: 'bg-slate-100 text-slate-700', medium: 'bg-amber-50 text-amber-700', high: 'bg-orange-50 text-orange-700', critical: 'bg-red-50 text-red-700' };
+const formatDate = value => { if (!value) return 'Never'; const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(); };
+const formatValue = (value, unit = '') => Number.isFinite(Number(value)) ? `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}${unit ? ` ${unit}` : ''}` : 'No data';
+
+function Modal({ title, children, onClose }) {
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+      <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4"><h2 className="text-lg font-semibold text-slate-900">{title}</h2><button onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close">×</button></div>
+      <div className="p-6">{children}</div>
+    </div>
+  </div>;
+}
 
 export default function PreventiveActionsPage() {
-  const { data, loading, error } = useFetch(settingsService.getAllSettings);
+  const [rules, setRules] = useState([]); const [users, setUsers] = useState([]); const [metrics, setMetrics] = useState(metricLabels);
+  const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
+  const [query, setQuery] = useState(''); const [metricFilter, setMetricFilter] = useState(''); const [enabledFilter, setEnabledFilter] = useState('');
+  const [modal, setModal] = useState(null); const [form, setForm] = useState(initialForm); const [history, setHistory] = useState(null); const [testing, setTesting] = useState(null); const [triggering, setTriggering] = useState(null);
 
-  if (loading) return <LoadingSpinner label="Loading preventive actions..." />;
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const [ruleResponse, userResponse] = await Promise.all([preventiveRuleService.getAll(), userService.getAllUsers({ limit: 100 })]);
+      setRules(ruleResponse?.data?.items || ruleResponse?.items || []); setMetrics(ruleResponse?.data?.metrics || ruleResponse?.metrics || metricLabels); setUsers(userResponse?.data?.items || userResponse?.items || []);
+    } catch (err) { setError(err.response?.data?.message || err.message || 'Unable to load preventive rules.'); } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const items = data?.items || [];
+  const filteredRules = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return rules.filter(rule => {
+      const ownerName = `${rule.owner?.firstName || ''} ${rule.owner?.lastName || ''}`.toLowerCase();
+      const matchesSearch = !normalized || [rule.name, rule.description, rule.action, ownerName].some(value => String(value || '').toLowerCase().includes(normalized));
+      return matchesSearch && (!metricFilter || rule.metric === metricFilter) && (enabledFilter === '' || String(rule.enabled) === enabledFilter);
+    });
+  }, [rules, query, metricFilter, enabledFilter]);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">
-          Preventive Actions & Outcome Tracking
-        </h1>
-        <div className="text-sm text-slate-500">{items.length} rules</div>
-      </div>
+  const openCreate = () => { setForm(initialForm); setModal({ type: 'form', title: 'Create preventive rule' }); };
+  const openEdit = rule => { setForm({ name: rule.name || '', description: rule.description || '', metric: rule.metric || 'rejection_rate', operator: rule.operator || '>', threshold: rule.threshold ?? '', severity: rule.severity || 'medium', action: rule.action || '', owner: rule.owner?._id || rule.owner || '', enabled: rule.enabled !== false, evaluationWindowHours: rule.evaluationWindowHours || 24 }); setModal({ type: 'edit', title: 'Edit preventive rule', id: rule._id }); };
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        {items.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">
-            No preventive rules configured
-          </div>
-        ) : (
-          <ul className="space-y-3">
-            {items.map((it) => (
-              <li
-                key={it.key}
-                className="flex items-center justify-between rounded-lg border p-3"
-              >
-                <div>
-                  <div className="font-medium">{it.key}</div>
-                  <div className="text-sm text-slate-500">
-                    {JSON.stringify(it.value)}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="rounded border px-3 py-1">Edit</button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+  const save = async event => {
+    event.preventDefault(); setSaving(true); setError(''); setNotice('');
+    try {
+      const payload = { ...form, threshold: Number(form.threshold), evaluationWindowHours: Number(form.evaluationWindowHours), owner: form.owner || undefined };
+      if (modal.type === 'edit') await preventiveRuleService.update(modal.id, payload); else await preventiveRuleService.create(payload);
+      setModal(null); setNotice(modal.type === 'edit' ? 'Rule updated successfully.' : 'Rule created successfully.'); await load();
+    } catch (err) { setError(err.response?.data?.message || err.message || 'Unable to save rule.'); } finally { setSaving(false); }
+  };
+  const remove = async rule => { if (!window.confirm(`Delete “${rule.name}”? This cannot be undone.`)) return; try { await preventiveRuleService.remove(rule._id); setNotice('Rule deleted.'); await load(); } catch (err) { setError(err.response?.data?.message || err.message || 'Unable to delete rule.'); } };
+  const toggle = async rule => { try { await preventiveRuleService.setEnabled(rule._id, !rule.enabled); setNotice(`Rule ${rule.enabled ? 'disabled' : 'enabled'}.`); await load(); } catch (err) { setError(err.response?.data?.message || err.message || 'Unable to update rule.'); } };
+  const test = async rule => { setTesting(rule._id); setError(''); try { const response = await preventiveRuleService.test(rule._id); setModal({ type: 'test', title: `Test result — ${rule.name}`, result: response?.data || response }); } catch (err) { setError(err.response?.data?.message || err.message || 'Unable to test rule.'); } finally { setTesting(null); } };
+  const trigger = async rule => { setTriggering(rule._id); setError(''); setNotice(''); try { const response = await preventiveRuleService.trigger(rule._id); const result = response?.data || response; setNotice(result?.message || 'Rule evaluated.'); await load(); } catch (err) { setError(err.response?.data?.message || err.message || 'Unable to evaluate rule.'); } finally { setTriggering(null); } };
+  const showHistory = async rule => { try { const response = await preventiveRuleService.history(rule._id); setHistory(response?.data || response); } catch (err) { setError(err.response?.data?.message || err.message || 'Unable to load trigger history.'); } };
+  const getMetricDescription = metric => metrics[metric] || metricLabels[metric] || metric;
+
+  return <div className="space-y-6">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="mb-2 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Rule engine</div><h1 className="text-2xl font-bold tracking-tight text-slate-950">Preventive Actions</h1><p className="mt-1 max-w-2xl text-sm text-slate-500">Configure operational conditions and recommended actions. Triggered actions require approval before execution.</p></div><button onClick={openCreate} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">+ Create rule</button></div>
+    {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div>}
+    {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[['Total rules', rules.length], ['Enabled', rules.filter(r => r.enabled).length], ['Triggered', rules.filter(r => r.lastTriggered).length], ['Critical', rules.filter(r => r.severity === 'critical').length]].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-4"><div className="text-xs font-medium text-slate-500">{label}</div><div className="mt-1 text-2xl font-bold">{value}</div></div>)}</div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex flex-col gap-3 md:flex-row"><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search rules, actions or owners..." className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /><select value={metricFilter} onChange={e => setMetricFilter(e.target.value)} className="rounded-xl border border-slate-300 px-3 py-2 text-sm"><option value="">All metrics</option>{Object.keys(metricLabels).map(key => <option key={key} value={key}>{metricLabels[key]}</option>)}</select><select value={enabledFilter} onChange={e => setEnabledFilter(e.target.value)} className="rounded-xl border border-slate-300 px-3 py-2 text-sm"><option value="">All states</option><option value="true">Enabled</option><option value="false">Disabled</option></select></div></div>
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {loading ? <div className="space-y-3 p-6">{[1,2,3].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-100" />)}</div> : filteredRules.length === 0 ? <div className="p-12 text-center"><div className="text-base font-semibold text-slate-900">No preventive rules found</div><p className="mt-1 text-sm text-slate-500">Create a rule to turn operational signals into reviewable actions.</p><button onClick={openCreate} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Create first rule</button></div> :
+      <div className="overflow-x-auto"><table className="min-w-[1050px] w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Rule</th><th className="px-5 py-3">Condition</th><th className="px-5 py-3">Action</th><th className="px-5 py-3">Owner</th><th className="px-5 py-3">Severity</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Last triggered</th><th className="px-5 py-3">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredRules.map(rule => <tr key={rule._id} className="hover:bg-slate-50/70"><td className="px-5 py-4"><div className="font-semibold text-slate-900">{rule.name}</div><div className="mt-1 max-w-[220px] truncate text-xs text-slate-500">{rule.description || getMetricDescription(rule.metric)}</div></td><td className="px-5 py-4"><div className="font-medium">{metricLabels[rule.metric] || rule.metric}</div><div className="mt-1 font-mono text-xs text-slate-500">{rule.operator} {rule.threshold}</div></td><td className="max-w-[240px] px-5 py-4"><div className="truncate" title={rule.action}>{rule.action}</div><div className="mt-1 text-xs text-slate-400">Approval required</div></td><td className="px-5 py-4">{rule.owner ? `${rule.owner.firstName || ''} ${rule.owner.lastName || ''}`.trim() || rule.owner.email : 'Unassigned'}</td><td className="px-5 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${severityClasses[rule.severity] || severityClasses.medium}`}>{rule.severity}</span></td><td className="px-5 py-4"><button onClick={() => toggle(rule)} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${rule.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{rule.enabled ? 'Enabled' : 'Disabled'}</button></td><td className="px-5 py-4 text-xs text-slate-500">{formatDate(rule.lastTriggered)}</td><td className="px-5 py-4"><div className="flex flex-wrap gap-2"><button onClick={() => test(rule)} disabled={testing === rule._id} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">{testing === rule._id ? 'Testing…' : 'Test'}</button><button onClick={() => trigger(rule)} disabled={triggering === rule._id || !rule.enabled} className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{triggering === rule._id ? 'Checking…' : 'Evaluate'}</button><button onClick={() => showHistory(rule)} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold">History</button><button onClick={() => openEdit(rule)} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold">Edit</button><button onClick={() => remove(rule)} className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600">Delete</button></div></td></tr>)}</tbody></table></div>}
     </div>
-  );
+
+    {(modal?.type === 'form' || modal?.type === 'edit') && <Modal title={modal.title} onClose={() => setModal(null)}><form onSubmit={save} className="space-y-4"><div className="grid gap-4 md:grid-cols-2">
+      <label className="md:col-span-2"><span className="mb-1 block text-sm font-medium">Rule name</span><input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="High rejection rate" /></label>
+      <label className="md:col-span-2"><span className="mb-1 block text-sm font-medium">Description</span><textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows="2" className="w-full rounded-xl border border-slate-300 px-3 py-2.5" /></label>
+      <label><span className="mb-1 block text-sm font-medium">Metric</span><select value={form.metric} onChange={e => setForm({...form, metric: e.target.value})} className="w-full rounded-xl border border-slate-300 px-3 py-2.5">{Object.keys(metricLabels).map(key => <option key={key} value={key}>{metricLabels[key]}</option>)}</select></label>
+      <label><span className="mb-1 block text-sm font-medium">Operator</span><select value={form.operator} onChange={e => setForm({...form, operator: e.target.value})} className="w-full rounded-xl border border-slate-300 px-3 py-2.5">{['>','>=','<','<=','=','!='].map(op => <option key={op}>{op}</option>)}</select></label>
+      <label><span className="mb-1 block text-sm font-medium">Threshold</span><input required type="number" step="any" value={form.threshold} onChange={e => setForm({...form, threshold: e.target.value})} className="w-full rounded-xl border border-slate-300 px-3 py-2.5" /></label>
+      <label><span className="mb-1 block text-sm font-medium">Evaluation window (hours)</span><input required type="number" min="1" max="720" value={form.evaluationWindowHours} onChange={e => setForm({...form, evaluationWindowHours: e.target.value})} className="w-full rounded-xl border border-slate-300 px-3 py-2.5" /></label>
+      <label><span className="mb-1 block text-sm font-medium">Severity</span><select value={form.severity} onChange={e => setForm({...form, severity: e.target.value})} className="w-full rounded-xl border border-slate-300 px-3 py-2.5">{['low','medium','high','critical'].map(s => <option key={s}>{s}</option>)}</select></label>
+      <label><span className="mb-1 block text-sm font-medium">Owner</span><select value={form.owner} onChange={e => setForm({...form, owner: e.target.value})} className="w-full rounded-xl border border-slate-300 px-3 py-2.5"><option value="">Unassigned</option>{users.map(user => <option key={user._id} value={user._id}>{user.firstName} {user.lastName} — {user.role}</option>)}</select></label>
+      <label className="md:col-span-2"><span className="mb-1 block text-sm font-medium">Recommended action</span><textarea required value={form.action} onChange={e => setForm({...form, action: e.target.value})} rows="3" className="w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="Create a quality inspection task for review." /><span className="mt-1 block text-xs text-slate-500">Triggered actions create an approval request. Nothing operational is executed automatically.</span></label>
+      <label className="flex items-center gap-2"><input type="checkbox" checked={form.enabled} onChange={e => setForm({...form, enabled: e.target.checked})} /><span className="text-sm font-medium">Enable rule immediately</span></label>
+    </div><div className="flex justify-end gap-3 border-t border-slate-200 pt-4"><button type="button" onClick={() => setModal(null)} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold">Cancel</button><button disabled={saving} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save rule'}</button></div></form></Modal>}
+
+    {modal?.type === 'test' && <Modal title={modal.title} onClose={() => setModal(null)}><div className="space-y-4"><div className={`rounded-xl border p-4 ${modal.result?.matched ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><div className="font-semibold">{modal.result?.matched ? 'Condition is currently met' : 'Condition is not currently met'}</div><div className="mt-1 text-sm">{modal.result?.description}</div></div><div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-500">Current value</div><div className="mt-1 font-semibold">{formatValue(modal.result?.value, modal.result?.unit)}</div></div><div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-500">Condition</div><div className="mt-1 font-mono font-semibold">{modal.result?.operator} {modal.result?.threshold}</div></div></div><p className="text-xs text-slate-500">Sample size: {modal.result?.sampleSize ?? 0}. Evaluation window: {modal.result?.evaluationWindowHours ?? 24} hours.</p></div></Modal>}
+    {history && <Modal title={`Trigger history — ${history.name}`} onClose={() => setHistory(null)}><div className="space-y-3">{!history.items?.length ? <div className="py-8 text-center text-sm text-slate-500">This rule has not triggered yet.</div> : history.items.map((item, index) => <div key={`${item.triggeredAt}-${index}`} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><span className="font-semibold">{item.matched ? 'Condition met' : 'Condition not met'}</span><span className="text-xs text-slate-500">{formatDate(item.triggeredAt)}</span></div><div className="mt-2 text-sm text-slate-600">Value {formatValue(item.value)} {item.operator} {item.threshold}</div>{item.approvalId && <div className="mt-2 text-xs text-amber-700">Approval: {item.approvalId} · {item.approvalStatus}</div>}</div>)}</div></Modal>}
+  </div>;
 }
