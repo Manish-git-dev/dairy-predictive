@@ -25,4 +25,9 @@ const qualityTestSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true }
 }, { timestamps: true });
 
+qualityTestSchema.index({ organization: 1, createdAt: -1 });
+qualityTestSchema.index({ organization: 1, testDate: -1 });
+qualityTestSchema.index({ organization: 1, grade: 1, result: 1, createdAt: -1 });
+qualityTestSchema.index({ organization: 1, milkLot: 1 });
+
 module.exports = mongoose.model('QualityTest', qualityTestSchema);
