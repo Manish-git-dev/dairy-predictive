@@ -40,7 +40,7 @@ const set = async (req, res, next) => {
       req.organizationId
     );
 
-    await logChange('update', result._id, req.user.id, before ? before.toObject() : null, result.toObject(), req);
+    await logChange(before ? 'update' : 'create', result._id, req.user.id, before ? before.toObject() : null, result.toObject(), req);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -49,7 +49,6 @@ const set = async (req, res, next) => {
 
 const deleteConfig = async (req, res, next) => {
   try {
-    const before = await configurationService.get(req.params.key, req.organizationId);
     const result = await configurationService.delete(req.params.key, req.organizationId);
     if (result) {
       await logChange('delete', result._id, req.user.id, result.toObject(), null, req);
