@@ -1,7 +1,7 @@
 import api from './api';
 
 export const notificationService = {
-  getAll: async (params) => {
+  getAll: async (params = {}) => {
     const response = await api.get('/notifications', { params });
     return response.data;
   },
