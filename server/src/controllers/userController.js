@@ -21,6 +21,7 @@ const getAll = async (req, res, next) => {
 const getById = async (req, res, next) => {
   try {
     const result = await userService.getById(req.params.id, req.organizationId);
+    if (!result) return res.status(404).json({ success: false, message: 'User not found' });
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -29,7 +30,7 @@ const getById = async (req, res, next) => {
 
 const update = async (req, res, next) => {
   try {
-    const result = await userService.update(req.params.id, req.body, req.organizationId);
+    const result = await userService.update(req.params.id, req.body, req.organizationId, req.user.id);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -39,8 +40,7 @@ const update = async (req, res, next) => {
 const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const oldPassword = currentPassword;
-    const result = await userService.changePassword(req.user.id, oldPassword, newPassword);
+    const result = await userService.changePassword(req.user.id, currentPassword, newPassword);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -49,7 +49,7 @@ const changePassword = async (req, res, next) => {
 
 const deactivate = async (req, res, next) => {
   try {
-    const result = await userService.deactivate(req.params.id, req.organizationId);
+    const result = await userService.deactivate(req.params.id, req.organizationId, req.user.id);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -65,12 +65,4 @@ const activate = async (req, res, next) => {
   }
 };
 
-module.exports = {
-  create,
-  getAll,
-  getById,
-  update,
-  changePassword,
-  deactivate,
-  activate
-};
+module.exports = { create, getAll, getById, update, changePassword, deactivate, activate };
