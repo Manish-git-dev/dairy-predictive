@@ -17,4 +17,7 @@ const alertSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true }
 }, { timestamps: true });
 
+alertSchema.index({ organization: 1, acknowledged: 1, severity: 1, createdAt: -1 });
+alertSchema.index({ organization: 1, type: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Alert', alertSchema);
