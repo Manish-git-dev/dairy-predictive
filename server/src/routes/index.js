@@ -28,6 +28,7 @@ router.use('/alerts', require('./alertRoutes'));
 router.use('/workflows', require('./workflowRoutes'));
 router.use('/dashboard', require('./dashboardRoutes'));
 router.use('/forecasts', require('./forecastRoutes'));
+router.use('/predictions', require('./predictionRoutes'));
 router.use('/anomalies', require('./anomalyRoutes'));
 router.use('/ai', require('./aiRoutes'));
 router.use('/approvals', require('./approvalRoutes'));
