@@ -1,7 +1,9 @@
 const QualityTest = require('../models/QualityTest');
 const MilkLot = require('../models/MilkLot');
+const User = require('../models/User');
 const getPagination = require('../utils/pagination');
 const ApiError = require('../utils/ApiError');
+const { assertOrganizationReference } = require('../utils/organizationReferences');
 
 const determineGrade = (fat, snf) => {
   if (fat >= 4.5 && snf >= 8.5) return 'A';
@@ -12,6 +14,9 @@ const determineGrade = (fat, snf) => {
 
 const qualityTestService = {
   create: async (data, organizationId) => {
+    await assertOrganizationReference(MilkLot, data.milkLot, organizationId, 'Milk lot');
+    await assertOrganizationReference(User, data.tester, organizationId, 'Tester');
+
     const testId = `QT-${Date.now()}`;
     const fat = (data.parameters && data.parameters.fat) || 0;
     const snf = (data.parameters && data.parameters.snf) || 0;
@@ -56,6 +61,9 @@ const qualityTestService = {
   },
 
   update: async (id, data, organizationId) => {
+    await assertOrganizationReference(MilkLot, data.milkLot, organizationId, 'Milk lot');
+    await assertOrganizationReference(User, data.tester, organizationId, 'Tester');
+
     if (data.parameters && (data.parameters.fat !== undefined || data.parameters.snf !== undefined)) {
       const existing = await QualityTest.findOne({ _id: id, organization: organizationId });
       if (existing) {
