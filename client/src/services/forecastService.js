@@ -1,6 +1,10 @@
 import api from './api';
 
 export const forecastService = {
+  generate: async (forecastData) => {
+    const response = await api.post('/forecasts/generate', forecastData);
+    return response.data;
+  },
   generateDemand: async (forecastData) => {
     const response = await api.post('/forecasts/demand', forecastData);
     return response.data;
