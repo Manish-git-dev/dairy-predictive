@@ -14,4 +14,9 @@ const inventorySchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true }
 }, { timestamps: true });
 
+inventorySchema.index({ organization: 1, status: 1, createdAt: -1 });
+inventorySchema.index({ organization: 1, expiryDate: 1 });
+inventorySchema.index({ organization: 1, product: 1 });
+inventorySchema.index({ organization: 1, batch: 1 });
+
 module.exports = mongoose.model('Inventory', inventorySchema);
