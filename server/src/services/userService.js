@@ -44,7 +44,9 @@ const userService = {
   },
 
   getById: async (id, organizationId) => {
-    return await User.findOne({ _id: id, organization: organizationId }).select("-password -refreshToken");
+    const user = await User.findOne({ _id: id, organization: organizationId }).select("-password -refreshToken");
+    if (!user) throw new ApiError(404, 'User not found');
+    return user;
   },
 
   update: async (id, data, organizationId, actorId) => {
