@@ -3,18 +3,26 @@ const getPagination = require('../utils/pagination');
 
 const notificationService = {
   create: async (data, organizationId) => {
-    const notification = new Notification({ ...data, organization: organizationId });
+    const severity = data.severity || (data.priority === 'high' ? 'high' : data.priority || 'medium');
+    const notification = new Notification({ ...data, severity, organization: organizationId });
     await notification.save();
     return notification;
   },
 
   getAll: async (userId, organizationId, filters = {}) => {
-    const { page = 1, limit = 10 } = filters;
-    const { skip, limit: limitNum } = getPagination(page, limit);
-
+    const { page = 1, limit = 50, read, severity, type, since } = filters;
+    const { skip, limit: limitNum } = getPagination(page, Math.min(Number(limit) || 50, 100));
     const query = { organization: organizationId, recipient: userId };
 
-    const items = await Notification.find(query).sort({ createdAt: -1 }).skip(skip).limit(limitNum);
+    if (read !== undefined && read !== '') query.read = read === true || read === 'true';
+    if (severity) query.severity = severity;
+    if (type) query.type = type;
+    if (since) {
+      const sinceDate = new Date(since);
+      if (!Number.isNaN(sinceDate.getTime())) query.createdAt = { $gt: sinceDate };
+    }
+
+    const items = await Notification.find(query).sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean();
     const total = await Notification.countDocuments(query);
     return { items, total, page: Number(page), limit: limitNum, totalPages: Math.ceil(total / limitNum) };
   },
@@ -42,13 +50,15 @@ const notificationService = {
     return await Notification.findOneAndDelete({ _id: id, recipient: userId, organization: organizationId });
   },
 
-  notify: async (recipientId, type, title, message, relatedEntity, organizationId) => {
+  notify: async (recipientId, type, title, message, relatedEntity, organizationId, options = {}) => {
     return await notificationService.create({
       recipient: recipientId,
       type,
       title,
       message,
-      relatedEntity
+      relatedEntity,
+      severity: options.severity || 'medium',
+      priority: options.priority || (options.severity === 'critical' ? 'high' : 'medium')
     }, organizationId);
   }
 };
