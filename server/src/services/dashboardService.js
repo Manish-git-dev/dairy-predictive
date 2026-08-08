@@ -29,20 +29,21 @@ const getRange = (options = {}) => {
 
 const dayKey = (date) => new Date(date).toISOString().slice(0, 10);
 
-const buildDailyTrend = (milkLots, start, end) => {
+const buildDailyTrend = (rows, start, end) => {
   const map = new Map();
   for (let cursor = new Date(start); cursor <= end; cursor = new Date(cursor.getTime() + DAY_MS)) {
     map.set(dayKey(cursor), { date: dayKey(cursor), volume: 0, count: 0 });
   }
 
-  milkLots.forEach((lot) => {
-    const date = new Date(lot._id?.date || lot.date);
+  rows.forEach((row) => {
+    const rawDate = typeof row._id === 'string' ? row._id : row._id?.date || row.date;
+    const date = new Date(rawDate);
     if (Number.isNaN(date.getTime())) return;
     const key = dayKey(date);
     if (!map.has(key)) return;
     const point = map.get(key);
-    point.volume += Number(lot.volume) || 0;
-    point.count += Number(lot.count) || 0;
+    point.volume += Number(row.volume) || 0;
+    point.count += Number(row.count) || 0;
   });
 
   return Array.from(map.values());
@@ -53,9 +54,6 @@ const dashboardService = {
     const { start, end } = getRange(options);
     const dateQuery = { organization: organizationId, createdAt: { $gte: start, $lte: end } };
 
-    // Aggregate large operational collections in MongoDB instead of loading
-    // every document into Node.js memory. This keeps dashboard latency and
-    // server memory usage predictable as the organization grows.
     const [
       milkMetrics,
       qualityMetrics,
@@ -123,42 +121,14 @@ const dashboardService = {
           $group: {
             _id: null,
             active: { $sum: { $cond: [{ $in: ['$status', ['loading', 'in_transit', 'unloading']] }, 1, 0] } },
-            deliveryEvents: {
-              $sum: {
-                $cond: [
-                  { $and: [{ $ne: ['$route.actualArrival', null] }, { $ne: ['$route.estimatedArrival', null] }] },
-                  1,
-                  0,
-                ],
-              },
-            },
-            onTime: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $ne: ['$route.actualArrival', null] },
-                      { $ne: ['$route.estimatedArrival', null] },
-                      { $lte: ['$route.actualArrival', '$route.estimatedArrival'] },
-                    ],
-                  },
-                  1,
-                  0,
-                ],
-              },
-            },
+            deliveryEvents: { $sum: { $cond: [{ $and: [{ $ne: ['$route.actualArrival', null] }, { $ne: ['$route.estimatedArrival', null] }] }, 1, 0] } },
+            onTime: { $sum: { $cond: [{ $and: [{ $ne: ['$route.actualArrival', null] }, { $ne: ['$route.estimatedArrival', null] }, { $lte: ['$route.actualArrival', '$route.estimatedArrival'] }] }, 1, 0] } },
           },
         },
       ]),
       Payment.aggregate([
         { $match: dateQuery },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 },
-            disputed: { $sum: { $cond: [{ $eq: ['$status', 'disputed'] }, 1, 0] } },
-          },
-        },
+        { $group: { _id: null, total: { $sum: 1 }, disputed: { $sum: { $cond: [{ $eq: ['$status', 'disputed'] }, 1, 0] } } } },
       ]),
       Farmer.countDocuments({ organization: organizationId, isActive: true }),
       CollectionCentre.countDocuments({ organization: organizationId, isActive: true }),
@@ -224,13 +194,7 @@ const dashboardService = {
     const { start, end } = getRange(options);
     const rows = await MilkLot.aggregate([
       { $match: { organization: organizationId, createdAt: { $gte: start, $lte: end } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-          volume: { $sum: { $convert: { input: '$quantityLitres', to: 'double', onError: 0, onNull: 0 } } },
-          count: { $sum: 1 },
-        },
-      },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, volume: { $sum: { $convert: { input: '$quantityLitres', to: 'double', onError: 0, onNull: 0 } } }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]);
     return buildDailyTrend(rows, start, end);
