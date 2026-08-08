@@ -9,11 +9,15 @@ const authenticate = async (req, res, next) => {
       throw new ApiError(401, 'No token provided or invalid format');
     }
 
+    if (!process.env.JWT_SECRET) {
+      throw new ApiError(500, 'Authentication service is not configured');
+    }
+
     const token = authHeader.split(' ')[1];
     
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
       throw new ApiError(401, 'Token is invalid or expired');
     }
