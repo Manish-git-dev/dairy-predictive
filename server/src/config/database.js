@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
 
+// Defense in depth against MongoDB operator injection in untrusted filters.
+mongoose.set('sanitizeFilter', true);
+mongoose.set('strictQuery', true);
+
 const connectDB = async () => {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
@@ -17,7 +21,7 @@ const connectDB = async () => {
         console.log('Successfully connected to MongoDB');
       })
       .catch((err) => {
-        console.error('Failed to connect to MongoDB, retrying in 5 seconds...', err.message);
+        console.error('MongoDB connection failed; retrying in 5 seconds:', err.name || 'DatabaseError');
         setTimeout(connectWithRetry, 5000);
       });
   };
@@ -27,7 +31,7 @@ const connectDB = async () => {
   });
 
   mongoose.connection.on('error', (err) => {
-    console.error('MongoDB connection error:', err);
+    console.error('MongoDB connection error:', err.name || 'DatabaseError');
   });
 
   connectWithRetry();
