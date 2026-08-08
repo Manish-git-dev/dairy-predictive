@@ -6,6 +6,10 @@ const PORT = process.env.PORT || 4000;
 
 const startServer = async () => {
   try {
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET environment variable is required");
+    }
+
     await connectDB();
     app.listen(PORT, () => {
       console.log(
