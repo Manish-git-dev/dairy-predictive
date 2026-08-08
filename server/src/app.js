@@ -4,8 +4,12 @@ const routes = require('./routes');
 const { notFound } = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
 const { rateLimiter } = require('./middleware/rateLimiter');
+const requestContext = require('./middleware/requestContext');
 
 const app = express();
+
+// Correlate every request with a safe identifier for client/server troubleshooting.
+app.use(requestContext);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -16,7 +20,7 @@ app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id']
 }));
 
 // Global rate limiting
