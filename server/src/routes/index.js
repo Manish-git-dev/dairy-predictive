@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { authenticate } = require('../middleware/authMiddleware');
 const { setOrganization } = require('../middleware/organizationMiddleware');
 
 // Health check - no auth required
