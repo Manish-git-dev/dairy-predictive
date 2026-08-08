@@ -1,39 +1,60 @@
 const ApiError = require('../utils/ApiError');
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const errorHandler = (err, req, res, next) => {
-  let error = { ...err };
-  error.message = err.message;
-  
-  if (err.name === 'CastError') {
-    const message = `Resource not found with id of ${err.value}`;
-    error = new ApiError(404, message);
+  let error = err;
+
+  if (err instanceof SyntaxError && err.status === 400 && err.type === 'entity.parse.failed') {
+    error = new ApiError(400, 'Malformed JSON request body');
+  } else if (err.name === 'CastError') {
+    error = new ApiError(400, 'Invalid resource identifier');
+  } else if (err.code === 11000) {
+    const fields = Object.keys(err.keyPattern || err.keyValue || {});
+    error = new ApiError(409, fields.length ? `Duplicate value for: ${fields.join(', ')}` : 'Duplicate resource');
+  } else if (err.name === 'ValidationError') {
+    const message = Object.values(err.errors || {})
+      .map((value) => value.message)
+      .filter(Boolean)
+      .join(', ');
+    error = new ApiError(400, message || 'Validation failed');
+  } else if (err.name === 'ZodError') {
+    const message = err.errors
+      .map((item) => `${item.path.join('.') || 'request'}: ${item.message}`)
+      .join(', ');
+    error = new ApiError(400, `Validation Error: ${message}`);
+  } else if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+    error = new ApiError(401, 'Token is invalid or expired');
+  } else if (err.name === 'MongoServerSelectionError' || err.name === 'MongooseServerSelectionError') {
+    error = new ApiError(503, 'Database service is temporarily unavailable', false);
+  } else if (err.name === 'MongoNetworkError' || err.name === 'MongooseError') {
+    error = new ApiError(503, 'Database service is temporarily unavailable', false);
   }
 
-  if (err.code === 11000) {
-    const message = 'Duplicate field value entered';
-    error = new ApiError(400, message);
+  const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+  const isOperational = error?.isOperational !== false && statusCode < 500;
+  const requestId = req.requestId;
+
+  if (statusCode >= 500 && !isProduction) {
+    console.error(`[${requestId || 'no-request-id'}]`, err);
+  } else if (statusCode >= 500) {
+    console.error(`[${requestId || 'no-request-id'}] ${err?.name || 'Error'}: ${err?.message || 'Unknown error'}`);
   }
 
-  if (err.name === 'ValidationError') {
-    const message = Object.values(err.errors).map(val => val.message).join(', ');
-    error = new ApiError(400, message);
-  }
-  
-  if (err.name === 'ZodError') {
-    const message = err.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-    error = new ApiError(400, message);
-  }
-
-  const statusCode = error.statusCode || 500;
-  
-  res.status(statusCode).json({
+  const response = {
     success: false,
     error: {
-      message: error.message || 'Server Error',
+      message: isOperational || statusCode < 500 ? (error?.message || 'Request failed') : 'Internal server error',
       code: statusCode,
-      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      requestId
     }
-  });
+  };
+
+  if (!isProduction && err?.stack) {
+    response.error.details = err.stack;
+  }
+
+  res.status(statusCode).json(response);
 };
 
 module.exports = errorHandler;
