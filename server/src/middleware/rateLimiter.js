@@ -1,3 +1,5 @@
+const ApiError = require('../utils/ApiError');
+
 const requests = new Map();
 
 const rateLimiter = (maxOrOptions, windowMinutes) => {
@@ -31,13 +33,10 @@ const rateLimiter = (maxOrOptions, windowMinutes) => {
     requestInfo.count++;
 
     if (requestInfo.count > max) {
-      return res.status(429).json({
-        success: false,
-        error: {
-          message,
-          code: 429
-        }
-      });
+      const error = new ApiError(429, message);
+      error.retryAfterSeconds = Math.ceil((requestInfo.resetTime - now) / 1000);
+      res.setHeader('Retry-After', String(error.retryAfterSeconds));
+      return next(error);
     }
 
     next();
@@ -51,6 +50,6 @@ setInterval(() => {
       requests.delete(ip);
     }
   }
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
 
 module.exports = { rateLimiter };
