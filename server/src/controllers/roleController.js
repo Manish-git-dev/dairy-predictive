@@ -1,8 +1,9 @@
-const Role = require('../models/Role'); // Using model directly per instructions or inline service pattern
+const Role = require('../models/Role');
+const ApiError = require('../utils/ApiError');
 
 const getAll = async (req, res, next) => {
   try {
-    const roles = await Role.find({ organization: req.organizationId });
+    const roles = await Role.find({ organization: req.organizationId }).sort({ name: 1 });
     res.status(200).json({ success: true, data: roles });
   } catch (error) {
     next(error);
@@ -12,11 +13,7 @@ const getAll = async (req, res, next) => {
 const getById = async (req, res, next) => {
   try {
     const role = await Role.findOne({ _id: req.params.id, organization: req.organizationId });
-    if (!role) {
-      const err = new Error('Role not found');
-      err.statusCode = 404;
-      throw err;
-    }
+    if (!role) throw new ApiError(404, 'Role not found');
     res.status(200).json({ success: true, data: role });
   } catch (error) {
     next(error);
@@ -25,7 +22,10 @@ const getById = async (req, res, next) => {
 
 const create = async (req, res, next) => {
   try {
-    const role = await Role.create({ ...req.body, organization: req.organizationId });
+    const existing = await Role.findOne({ name: req.body.name, organization: req.organizationId }).select('_id');
+    if (existing) throw new ApiError(409, 'A role with this name already exists in this organization');
+
+    const role = await Role.create({ ...req.body, organization: req.organizationId, isSystem: false });
     res.status(201).json({ success: true, data: role });
   } catch (error) {
     next(error);
@@ -34,16 +34,16 @@ const create = async (req, res, next) => {
 
 const update = async (req, res, next) => {
   try {
-    const role = await Role.findOneAndUpdate(
-      { _id: req.params.id, organization: req.organizationId },
-      req.body,
-      { new: true, runValidators: true }
-    );
-    if (!role) {
-      const err = new Error('Role not found');
-      err.statusCode = 404;
-      throw err;
+    const role = await Role.findOne({ _id: req.params.id, organization: req.organizationId });
+    if (!role) throw new ApiError(404, 'Role not found');
+    if (role.isSystem) throw new ApiError(403, 'System roles cannot be modified');
+
+    if (req.body.name || req.body.organization || req.body.isSystem) {
+      throw new ApiError(400, 'Role identity and system status cannot be changed');
     }
+
+    Object.assign(role, req.body);
+    await role.save();
     res.status(200).json({ success: true, data: role });
   } catch (error) {
     next(error);
@@ -52,22 +52,21 @@ const update = async (req, res, next) => {
 
 const deleteRole = async (req, res, next) => {
   try {
-    const role = await Role.findOneAndDelete({ _id: req.params.id, organization: req.organizationId });
-    if (!role) {
-      const err = new Error('Role not found');
-      err.statusCode = 404;
-      throw err;
-    }
+    const role = await Role.findOne({ _id: req.params.id, organization: req.organizationId });
+    if (!role) throw new ApiError(404, 'Role not found');
+    if (role.isSystem) throw new ApiError(403, 'System roles cannot be deleted');
+
+    const assignedUsers = await require('../models/User').countDocuments({
+      organization: req.organizationId,
+      role: role.name
+    });
+    if (assignedUsers > 0) throw new ApiError(409, 'Role cannot be deleted while users are assigned to it');
+
+    await role.deleteOne();
     res.status(200).json({ success: true, data: { message: 'Role deleted successfully' } });
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = {
-  getAll,
-  getById,
-  create,
-  update,
-  delete: deleteRole
-};
+module.exports = { getAll, getById, create, update, delete: deleteRole };
