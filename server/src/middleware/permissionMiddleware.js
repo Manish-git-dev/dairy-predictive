@@ -16,21 +16,21 @@ const RESOURCE_ALIASES = Object.freeze({
   'quality-tests': 'testing',
   'sla-rules': 'sla_rules',
   'preventive-rules': 'preventive_rules',
-  'risk': 'risk_scores',
-  'kpi': 'kpi'
+  risk: 'risk_scores',
+  kpi: 'kpi'
 });
 
 const normalizeResource = (resource) => RESOURCE_ALIASES[resource] || resource;
 
 const inferResource = (req) => {
-  const basePath = req.baseUrl || '';
-  const segments = basePath.split('/').filter(Boolean);
-  const resource = segments[segments.length - 1];
+  // This middleware runs on the parent /api/v1 router, so req.baseUrl alone
+  // does not contain the child resource. Use the mounted URL first.
+  const pathname = (req.originalUrl || req.baseUrl || '').split('?')[0];
+  const segments = pathname.split('/').filter(Boolean);
+  const versionIndex = segments.indexOf('v1');
+  const resource = versionIndex >= 0 ? segments[versionIndex + 1] : segments[segments.length - 1];
 
-  if (!resource || resource === 'api' || resource === 'v1') {
-    return null;
-  }
-
+  if (!resource || resource === 'api' || resource === 'v1') return null;
   return normalizeResource(resource);
 };
 
@@ -51,7 +51,7 @@ const inferAction = (req) => {
 };
 
 const hasPermission = (role, resource, action) => {
-  if (!role || !resource || !action) return false;
+  if (!role || !resource || !action || !Array.isArray(role.permissions)) return false;
 
   return role.permissions.some((permission) => {
     if (!permission || permission.resource !== resource) return false;
@@ -82,11 +82,12 @@ const requirePermission = (resource, action) => {
         return next(new ApiError(403, 'No authorization role is configured for this organization'));
       }
 
-      const roleAllowsAction = hasPermission(role, resolvedResource, resolvedAction);
-      if (!roleAllowsAction) {
+      if (!hasPermission(role, resolvedResource, resolvedAction)) {
         return next(new ApiError(403, 'You do not have permission to perform this action'));
       }
 
+      // A role assignment is only usable when the corresponding permission
+      // exists in the active permission catalog.
       const permission = await Permission.findOne({
         resource: resolvedResource,
         action: resolvedAction,
