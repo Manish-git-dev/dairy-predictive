@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const MilkLot = require('../models/MilkLot');
 const QualityTest = require('../models/QualityTest');
 const Tanker = require('../models/Tanker');
@@ -52,7 +53,10 @@ const buildDailyTrend = (rows, start, end) => {
 const dashboardService = {
   getOverview: async (organizationId, options = {}) => {
     const { start, end } = getRange(options);
-    const dateQuery = { organization: organizationId, createdAt: { $gte: start, $lte: end } };
+    const dateQuery = {
+      organization: organizationId,
+      createdAt: mongoose.trusted({ $gte: start, $lte: end })
+    };
 
     const [
       milkMetrics,
