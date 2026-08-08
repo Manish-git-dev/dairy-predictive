@@ -23,4 +23,8 @@ const approvalSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true }
 }, { timestamps: true });
 
+approvalSchema.index({ organization: 1, status: 1, createdAt: -1 });
+approvalSchema.index({ organization: 1, reviewer: 1, createdAt: -1 });
+approvalSchema.index({ organization: 1, requester: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Approval', approvalSchema);
