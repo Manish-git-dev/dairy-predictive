@@ -19,23 +19,38 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to attach JWT token
+// Request interceptor to attach JWT token and a client-generated correlation ID.
 api.interceptors.request.use(
   (config) => {
     const token = storage.getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      config.headers['X-Request-Id'] = crypto.randomUUID();
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle 401 Unauthorized responses
+// Normalize backend failures while preserving the original Axios response.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response ? error.response.status : null;
+    const backendError = error.response?.data?.error;
+
+    error.status = status;
+    error.code = backendError?.code ?? error.code;
+    error.requestId = backendError?.requestId || error.response?.headers?.['x-request-id'];
+    error.userMessage = backendError?.message || error.message || 'Something went wrong. Please try again.';
+
+    if (!error.response) {
+      error.userMessage = 'Unable to reach the server. Please check your connection and try again.';
+    }
 
     if (status === 401) {
       storage.clear();
