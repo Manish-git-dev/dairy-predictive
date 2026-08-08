@@ -63,8 +63,13 @@ const userService = {
       data.email = normalizedEmail;
     }
 
-    if (data.isActive === false && String(id) === String(actorId)) {
-      throw new ApiError(400, 'You cannot deactivate your own account');
+    if (String(id) === String(actorId) && (data.isActive === false || data.role === '')) {
+      throw new ApiError(400, 'You cannot disable or invalidate your own administrator account');
+    }
+
+    if (user.role === 'ops_admin' && (data.isActive === false || (data.role && data.role !== 'ops_admin'))) {
+      const activeAdmins = await User.countDocuments({ organization: organizationId, role: 'ops_admin', isActive: true });
+      if (activeAdmins <= 1) throw new ApiError(400, 'The last active operations admin cannot be removed');
     }
 
     const update = { ...data };
