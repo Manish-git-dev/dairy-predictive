@@ -1,146 +1,86 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import useFetch from "../../hooks/useFetch";
 import dashboardService from "../../services/dashboardService";
-import MetricCard from "../../components/common/MetricCard";
-import LoadingSpinner from "../../components/common/LoadingSpinner";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  CartesianGrid,
-  Legend,
-} from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 
-const COLORS = ["#10B981", "#F59E0B", "#EF4444", "#3B82F6", "#8B5CF6"];
+const PERIODS = [{ value: "7d", label: "7 days" }, { value: "30d", label: "30 days" }, { value: "90d", label: "90 days" }];
+const QUALITY_COLORS = ["#10B981", "#F59E0B", "#EF4444"];
+const GRADE_COLORS = ["#2563EB", "#6366F1", "#F59E0B", "#EF4444"];
+
+const formatNumber = (value, digits = 0) => value === null || value === undefined || !Number.isFinite(Number(value)) ? "—" : Number(value).toLocaleString(undefined, { maximumFractionDigits: digits });
+const formatPercent = (value, digits = 1) => value === null || value === undefined || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toFixed(digits)}%`;
+const formatDateTime = (value) => { if (!value) return "—"; const date = new Date(value); return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }); };
+const formatDate = (value) => { const date = new Date(`${value}T00:00:00`); return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString(undefined, { month: "short", day: "numeric" }); };
+
+function Icon({ name, className = "h-5 w-5" }) {
+  const common = { className, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true };
+  const paths = {
+    milk: <><path d="M7 3h10l1 5-2 2v11H8V10L6 8l1-5Z" /><path d="M7 8h10M8 13h8" /></>,
+    quality: <><path d="M12 3 4 6v5c0 5 3.3 8.3 8 10 4.7-1.7 8-5 8-10V6l-8-3Z" /><path d="m8.5 12 2.2 2.2 4.8-4.8" /></>,
+    farmer: <><circle cx="9" cy="8" r="3" /><path d="M3 20v-1a6 6 0 0 1 12 0v1M16 11a3 3 0 1 0 0-6M21 20v-1a6 6 0 0 0-4-5.7" /></>,
+    centre: <><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-7h6v7M8 10h.01M12 10h.01M16 10h.01" /></>,
+    tasks: <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h4M16 16h.01" /></>,
+    alert: <><path d="M12 3 2.8 20h18.4L12 3Z" /><path d="M12 9v4M12 17h.01" /></>,
+    refresh: <><path d="M20 11a8 8 0 0 0-14.8-4L3 9" /><path d="M3 4v5h5M4 13a8 8 0 0 0 14.8 4L21 15" /><path d="M21 20v-5h-5" /></>,
+    arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
+  };
+  return <svg {...common}>{paths[name]}</svg>;
+}
+
+function Skeleton({ className = "h-10" }) { return <div className={`animate-pulse rounded-lg bg-slate-100 ${className}`} aria-hidden="true" />; }
+function EmptyState({ message }) { return <div className="flex min-h-48 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm text-slate-500">{message}</div>; }
+function SectionError({ message, onRetry }) { return <div className="rounded-xl border border-rose-200 bg-rose-50 p-4" role="alert"><p className="text-sm font-semibold text-rose-800">Couldn’t load this section</p><p className="mt-1 text-xs text-rose-700">{message || "The dashboard service returned an error."}</p>{onRetry && <button type="button" onClick={onRetry} className="mt-3 text-xs font-semibold text-rose-800 underline underline-offset-2">Try again</button>}</div>; }
+
+function MetricCard({ title, value, subtitle, icon, tone = "primary" }) {
+  const tones = { primary: "bg-primary-50 text-primary-600", success: "bg-emerald-50 text-emerald-600", warning: "bg-amber-50 text-amber-600", danger: "bg-rose-50 text-rose-600" };
+  return <article className="ds-card ds-card-interactive p-5"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-sm font-medium text-slate-500">{title}</p><p className="mt-3 text-2xl font-bold tracking-tight text-slate-950">{value}</p>{subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}</div><div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone] || tones.primary}`}><Icon name={icon} className="h-5 w-5" /></div></div></article>;
+}
+function Section({ title, description, action, children, className = "" }) { return <section className={`ds-card p-5 sm:p-6 ${className}`}><div className="mb-5 flex items-start justify-between gap-4"><div><h2 className="text-base font-semibold tracking-tight text-slate-950">{title}</h2>{description && <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>}</div>{action}</div>{children}</section>; }
+function RiskItem({ label, value, detail, tone = "neutral" }) { const tones = { neutral: "bg-slate-100 text-slate-700", success: "bg-emerald-50 text-emerald-700", warning: "bg-amber-50 text-amber-700", danger: "bg-rose-50 text-rose-700" }; return <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 last:border-0 last:pb-0 first:pt-0"><div className="min-w-0"><p className="text-sm font-medium text-slate-800">{label}</p><p className="mt-0.5 text-xs text-slate-500">{detail}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone]}`}>{value}</span></div>; }
 
 export default function OperationsDashboardPage() {
-  const {
-    data: overview,
-    loading,
-    error,
-    refetch,
-  } = useFetch(dashboardService.getOverview);
-  const { data: trendData } = useFetch(
-    dashboardService.getCollectionTrend,
-    {},
-    false,
-  );
-  const { data: quality } = useFetch(
-    dashboardService.getQualityDistribution,
-    {},
-    false,
-  );
+  const [period, setPeriod] = useState("30d");
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const params = useMemo(() => ({ period }), [period]);
+  const overview = useFetch(dashboardService.getOverview, params);
+  const trend = useFetch(dashboardService.getCollectionTrend, params);
+  const quality = useFetch(dashboardService.getQualityDistribution, params);
+  const stages = useFetch(dashboardService.getStageMetrics);
 
-  if (loading) return <LoadingSpinner label="Loading dashboard..." />;
+  useEffect(() => { if (overview.data && !overview.loading) setLastUpdated(new Date()); }, [overview.data, overview.loading]);
 
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <MetricCard
-          title="Collection Volume (L)"
-          value={overview?.collectionVolume ?? "—"}
-          delta={overview?.deltas?.collectionVolume}
-        />
-        <MetricCard
-          title="Fat (%)"
-          value={overview?.fatAvg ?? "—"}
-          delta={overview?.deltas?.fat}
-        />
-        <MetricCard
-          title="SNF (%)"
-          value={overview?.snfAvg ?? "—"}
-          delta={overview?.deltas?.snf}
-        />
-        <MetricCard
-          title="Rejection Rate"
-          value={overview?.rejectionRate ?? "—"}
-          delta={overview?.deltas?.rejectionRate}
-        />
-        <MetricCard
-          title="Chilling Time (hrs)"
-          value={overview?.avgChillTime ?? "—"}
-          delta={overview?.deltas?.chillTime}
-        />
-        <MetricCard
-          title="Plant Yield (%)"
-          value={overview?.plantYield ?? "—"}
-          delta={overview?.deltas?.plantYield}
-        />
-      </div>
+  const handleRefresh = async () => {
+    await Promise.allSettled([overview.refetch(params), trend.refetch(params), quality.refetch(params), stages.refetch()]);
+    setLastUpdated(new Date());
+  };
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="col-span-2 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Collection Trend</h3>
-            <button
-              onClick={() => refetch()}
-              className="text-sm text-slate-500 hover:underline"
-            >
-              Refresh
-            </button>
-          </div>
-          <div style={{ height: 280 }} className="mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData?.items || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="volume"
-                  stroke="#3B82F6"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="fatAvg"
-                  stroke="#10B981"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+  const trendData = Array.isArray(trend.data) ? trend.data : [];
+  const qualityData = quality.data ? [{ name: "Accepted", value: Number(quality.data.accepted) || 0 }, { name: "Borderline", value: Number(quality.data.borderline) || 0 }, { name: "Rejected", value: Number(quality.data.rejected) || 0 }].filter((item) => item.value > 0) : [];
+  const gradeData = quality.data?.grades ? Object.entries(quality.data.grades).map(([name, value]) => ({ name, value: Number(value) || 0 })).filter((item) => item.value > 0) : [];
+  const stageData = stages.data ? Object.entries(stages.data).map(([name, value]) => ({ name: name === "transport" ? "dispatch" : name, value: Number(value) || 0 })) : [];
+  const allInitialLoading = overview.loading && trend.loading && quality.loading && stages.loading;
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="text-lg font-semibold">Quality Distribution</h3>
-          <div style={{ height: 280 }} className="mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={quality?.items || []}
-                  dataKey="value"
-                  nameKey="label"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  label
-                >
-                  {(quality?.items || []).map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  if (allInitialLoading) return <div className="space-y-6" aria-busy="true"><div><Skeleton className="h-7 w-64" /><Skeleton className="mt-2 h-4 w-80" /></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"><Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-32" /></div><div className="grid grid-cols-1 gap-6 xl:grid-cols-3"><Skeleton className="h-80 xl:col-span-2" /><Skeleton className="h-80" /></div></div>;
+  if (overview.error && !overview.data) return <div className="space-y-6"><div><h1 className="text-2xl font-bold tracking-tight text-slate-950">Operations Dashboard</h1><p className="mt-1 text-sm text-slate-500">Live operational performance and risk overview.</p></div><SectionError message={overview.error} onRetry={handleRefresh} /></div>;
+
+  const data = overview.data || {};
+  const risks = data.risks || {};
+  const activity = Array.isArray(data.recentActivity) ? data.recentActivity : [];
+
+  return <div className="space-y-6 pb-8">
+    <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-bold tracking-tight text-slate-950">Operations Dashboard</h1><span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Live data</span></div><p className="mt-1 text-sm text-slate-500">Your operational command center for collection, quality, workflow and risk.</p></div><div className="flex flex-wrap items-center gap-2"><div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-ds-sm" aria-label="Dashboard period">{PERIODS.map((item) => <button key={item.value} type="button" onClick={() => setPeriod(item.value)} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${period === item.value ? "bg-primary-600 text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`} aria-pressed={period === item.value}>{item.label}</button>)}</div><button type="button" onClick={handleRefresh} disabled={overview.loading || trend.loading || quality.loading || stages.loading} className="ds-btn ds-btn-secondary h-9 px-3 text-xs"><Icon name="refresh" className={`h-4 w-4 ${overview.loading ? "animate-spin" : ""}`} /> Refresh</button></div></div>
+
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-500 shadow-ds-sm"><span>Period: {data.period ? `${formatDateTime(data.period.start)} – ${formatDateTime(data.period.end)}` : PERIODS.find((item) => item.value === period)?.label}</span><span>Last updated: <strong className="font-semibold text-slate-700">{formatDateTime(lastUpdated)}</strong></span></div>
+
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"><MetricCard title="Milk Collection" value={`${formatNumber(data.collectionVolume)} L`} subtitle={PERIODS.find((item) => item.value === period)?.label || "Selected period"} icon="milk" /><MetricCard title="Average Fat" value={formatPercent(data.avgFat, 2)} subtitle="Quality tests with a recorded fat value" icon="quality" tone="success" /><MetricCard title="Average SNF" value={formatPercent(data.avgSnf, 2)} subtitle="Quality tests with a recorded SNF value" icon="quality" /><MetricCard title="Rejection Rate" value={formatPercent(data.rejectionRate, 2)} subtitle="Rejected milk lots in selected period" icon="alert" tone={Number(data.rejectionRate) > 5 ? "danger" : "warning"} /><MetricCard title="Active Farmers" value={formatNumber(data.activeFarmers)} subtitle="Currently active in the organization" icon="farmer" /><MetricCard title="Active Collection Centers" value={formatNumber(data.activeCollectionCentres)} subtitle="Active centers in the organization" icon="centre" tone="success" /><MetricCard title="Pending Tasks" value={formatNumber(data.pendingTasks)} subtitle="Pending, assigned, in progress or escalated" icon="tasks" tone="warning" /><MetricCard title="Critical Alerts" value={formatNumber(data.criticalAlerts)} subtitle="Unacknowledged and unresolved" icon="alert" tone="danger" /></div>
+
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-3"><Section title="Collection trend" description="Milk collection volume by day." className="xl:col-span-2">{trend.error ? <SectionError message={trend.error} onRetry={() => trend.refetch(params)} /> : trend.loading ? <Skeleton className="h-80" /> : trendData.length ? <div className="h-80 w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} /><XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: "#64748B" }} tickLine={false} axisLine={false} minTickGap={24} /><YAxis tick={{ fontSize: 11, fill: "#64748B" }} tickLine={false} axisLine={false} width={54} tickFormatter={(value) => `${formatNumber(value)}L`} /><Tooltip formatter={(value) => [`${formatNumber(value)} L`, "Collection"]} labelFormatter={formatDate} contentStyle={{ borderRadius: 12, borderColor: "#E2E8F0" }} /><Line type="monotone" dataKey="volume" name="Collection" stroke="#2563EB" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer></div> : <EmptyState message="No milk collection records are available for this period." />}</Section><Section title="Quality distribution" description="Quality test outcomes in the selected period.">{quality.error ? <SectionError message={quality.error} onRetry={() => quality.refetch(params)} /> : quality.loading ? <Skeleton className="h-80" /> : qualityData.length ? <div className="h-80"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={qualityData} dataKey="value" nameKey="name" cx="50%" cy="45%" innerRadius={62} outerRadius={94} paddingAngle={3} labelLine={false} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>{qualityData.map((entry, index) => <Cell key={entry.name} fill={QUALITY_COLORS[index % QUALITY_COLORS.length]} />)}</Pie><Tooltip formatter={(value, name) => [formatNumber(value), name]} contentStyle={{ borderRadius: 12, borderColor: "#E2E8F0" }} /></PieChart></ResponsiveContainer></div> : <EmptyState message="No quality test records are available for this period." />}</Section></div>
+
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2"><Section title="Operational stages" description="Current records by operational stage.">{stages.error ? <SectionError message={stages.error} onRetry={() => stages.refetch()} /> : stages.loading ? <Skeleton className="h-72" /> : stageData.length ? <div className="h-72"><ResponsiveContainer width="100%" height="100%"><BarChart data={stageData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}><CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} /><XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748B" }} tickLine={false} axisLine={false} tickFormatter={(value) => value.charAt(0).toUpperCase() + value.slice(1)} /><YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748B" }} tickLine={false} axisLine={false} /><Tooltip formatter={(value) => [formatNumber(value), "Records"]} contentStyle={{ borderRadius: 12, borderColor: "#E2E8F0" }} /><Bar dataKey="value" name="Records" fill="#2563EB" radius={[5, 5, 0, 0]} maxBarSize={44} /></BarChart></ResponsiveContainer></div> : <EmptyState message="No operational stage records are available." />}</Section><Section title="Risk overview" description="Risks derived from current operational records and alerts."><div className="space-y-0"><RiskItem label="Anomalies" value={formatNumber(risks.anomalies)} detail="Detected or under investigation" tone={Number(risks.anomalies) ? "warning" : "success"} /><RiskItem label="Critical alerts" value={formatNumber(risks.criticalAlerts)} detail="Unacknowledged and unresolved" tone={Number(risks.criticalAlerts) ? "danger" : "success"} /><RiskItem label="Capacity risk" value={formatNumber(risks.capacityRisk)} detail="Active centers at 85%+ utilization" tone={Number(risks.capacityRisk) ? "warning" : "success"} /><RiskItem label="Quality risk" value={formatPercent(risks.qualityRisk?.rate, 1)} detail={`${formatNumber(risks.qualityRisk?.failed)} failed · ${formatNumber(risks.qualityRisk?.borderline)} borderline`} tone={Number(risks.qualityRisk?.rate) > 10 ? "danger" : Number(risks.qualityRisk?.rate) ? "warning" : "success"} /><RiskItem label="Operational risk" value={formatNumber(risks.operationalRisk?.count)} detail={`${formatNumber(risks.operationalRisk?.escalatedTasks)} escalated tasks · ${formatNumber(risks.operationalRisk?.activeTankers)} active tankers`} tone={Number(risks.operationalRisk?.count) ? "warning" : "success"} /></div></Section></div>
+
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2"><Section title="Recent activity" description="Latest operational events recorded in the selected period.">{activity.length ? <div className="divide-y divide-slate-100">{activity.map((item) => <div key={item.id} className="flex gap-3 py-3 first:pt-0 last:pb-0"><span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary-500" /><div className="min-w-0 flex-1"><p className="text-sm text-slate-700">{item.description}</p><p className="mt-1 text-xs text-slate-400">{item.stage ? `${item.stage} · ` : ""}{item.user || "System"} · {formatDateTime(item.createdAt)}</p></div></div>)}</div> : <EmptyState message="No operational activity has been recorded for this period." />}</Section><Section title="Quality grades" description="Grade breakdown from recorded quality tests.">{gradeData.length ? <div className="h-64"><ResponsiveContainer width="100%" height="100%"><BarChart data={gradeData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} /><XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748B" }} tickLine={false} axisLine={false} /><YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748B" }} tickLine={false} axisLine={false} /><Tooltip formatter={(value) => [formatNumber(value), "Tests"]} contentStyle={{ borderRadius: 12, borderColor: "#E2E8F0" }} /><Legend /><Bar dataKey="value" name="Tests" fill="#6366F1" radius={[5, 5, 0, 0]} maxBarSize={48}>{gradeData.map((entry, index) => <Cell key={entry.name} fill={GRADE_COLORS[index % GRADE_COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div> : <EmptyState message="No quality grades are available for this period." />}</Section></div>
+
+    <Section title="Quick actions" description="Jump directly into the operational workflows."><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">{[{ label: "Create Task", description: "Open task planning", to: "/tasks", icon: "tasks" }, { label: "View Anomalies", description: "Review operational risks", to: "/anomalies", icon: "alert" }, { label: "Create Workflow", description: "Open workflow queues", to: "/workflows", icon: "arrow" }, { label: "Run Forecast", description: "Open capacity forecast", to: "/forecast", icon: "arrow" }, { label: "View Reports", description: "Open operational reports", to: "/reports", icon: "arrow" }].map((action) => <Link key={action.label} to={action.to} className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-ds-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600"><Icon name={action.icon} className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-800">{action.label}</span><span className="mt-0.5 block text-xs text-slate-500">{action.description}</span></span><Icon name="arrow" className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-primary-600" /></Link>)}</div></Section>
+  </div>;
 }
