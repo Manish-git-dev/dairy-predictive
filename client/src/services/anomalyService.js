@@ -1,11 +1,11 @@
 import api from './api';
 
 export const anomalyService = {
-  detectAnomalies: async () => {
-    const response = await api.post('/anomalies/detect');
+  detectAnomalies: async (params = {}) => {
+    const response = await api.post('/anomalies/detect', params);
     return response.data;
   },
-  getAllAnomalies: async (params) => {
+  getAllAnomalies: async (params = {}) => {
     const response = await api.get('/anomalies', { params });
     return response.data;
   },
@@ -17,8 +17,8 @@ export const anomalyService = {
     const response = await api.get(`/anomalies/${id}`);
     return response.data;
   },
-  updateStatus: async (id, status) => {
-    const response = await api.patch(`/anomalies/${id}/status`, { status });
+  updateStatus: async (id, status, resolution = '') => {
+    const response = await api.patch(`/anomalies/${id}/status`, { status, resolution });
     return response.data;
   },
   explainAnomaly: async (id) => {
