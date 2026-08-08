@@ -1,10 +1,22 @@
 const MilkLot = require('../models/MilkLot');
+const Farmer = require('../models/Farmer');
+const Tanker = require('../models/Tanker');
+const Batch = require('../models/Batch');
 const OperationalEvent = require('../models/OperationalEvent');
 const getPagination = require('../utils/pagination');
 const ApiError = require('../utils/ApiError');
+const { assertOrganizationReference } = require('../utils/organizationReferences');
+
+const validateReferences = async (data, organizationId) => {
+  await assertOrganizationReference(Farmer, data.farmer, organizationId, 'Farmer');
+  await assertOrganizationReference(Tanker, data.tanker, organizationId, 'Tanker');
+  await assertOrganizationReference(Batch, data.batch, organizationId, 'Batch');
+};
 
 const milkLotService = {
   create: async (data, organizationId) => {
+    await validateReferences(data, organizationId);
+
     const lotId = `ML-${Date.now()}`;
     let pricePerLitre = 0;
     let totalAmount = 0;
@@ -48,6 +60,7 @@ const milkLotService = {
   },
 
   update: async (id, data, organizationId) => {
+    await validateReferences(data, organizationId);
     const lot = await MilkLot.findOneAndUpdate({ _id: id, organization: organizationId }, data, { new: true });
     if (!lot) throw new ApiError(404, 'Milk lot not found');
     return lot;
@@ -74,6 +87,7 @@ const milkLotService = {
   },
 
   getByFarmer: async (farmerId, organizationId, filters = {}) => {
+    await assertOrganizationReference(Farmer, farmerId, organizationId, 'Farmer');
     const { limit = 50 } = filters;
     return await MilkLot.find({ farmer: farmerId, organization: organizationId })
       .sort({ createdAt: -1 })
