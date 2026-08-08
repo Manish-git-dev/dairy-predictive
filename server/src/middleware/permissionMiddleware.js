@@ -1,6 +1,5 @@
 const ApiError = require('../utils/ApiError');
 const Role = require('../models/Role');
-const Permission = require('../models/Permission');
 
 const METHOD_ACTIONS = Object.freeze({
   GET: 'read',
@@ -39,7 +38,7 @@ const inferAction = (req) => {
   const explicitAction = METHOD_ACTIONS[method];
   if (!explicitAction) return null;
 
-  // State transitions/reviews are updates even when exposed as POST/PATCH.
+  // State transitions/reviews are updates even when exposed as POST.
   if (
     method === 'POST' &&
     /\/(transition|review|status|assign|escalate|read-all)(\/|$)/i.test(req.path || '')
@@ -74,6 +73,9 @@ const requirePermission = (resource, action) => {
         return next(new ApiError(403, 'Permission could not be determined for this operation'));
       }
 
+      // Role permissions are organization-scoped and are therefore the source
+      // of truth for this phase. The Permission catalog remains available for
+      // the more granular resource/action management introduced later.
       const role = await Role.findOne({
         name: req.user.role,
         organization: req.organizationId
@@ -85,19 +87,6 @@ const requirePermission = (resource, action) => {
 
       if (!hasPermission(role, resolvedResource, resolvedAction)) {
         return next(new ApiError(403, 'You do not have permission to perform this action'));
-      }
-
-      // A role assignment is only usable when the corresponding permission
-      // exists in the active permission catalog.
-      const permission = await Permission.findOne({
-        $or: [
-          { resource: resolvedResource, action: resolvedAction, isActive: true },
-          { resource: '*', action: resolvedAction, isActive: true }
-        ]
-      }).select('_id');
-
-      if (!permission) {
-        return next(new ApiError(403, 'This permission is not active'));
       }
 
       req.permission = {
