@@ -1,5 +1,6 @@
 const Approval = require('../models/Approval');
 const AuditLog = require('../models/AuditLog');
+const notificationService = require('./notificationService');
 const getPagination = require('../utils/pagination');
 const ApiError = require('../utils/ApiError');
 
@@ -7,11 +8,9 @@ const approvalService = {
   getAll: async (organizationId, filters = {}) => {
     const { page = 1, limit = 10, status, type } = filters;
     const { skip, limit: limitNum } = getPagination(page, limit);
-
     const query = { organization: organizationId };
     if (status) query.status = status;
     if (type) query.type = type;
-
     const items = await Approval.find(query).populate('requester reviewer relatedEntity.id').sort({ createdAt: -1 }).skip(skip).limit(limitNum);
     const total = await Approval.countDocuments(query);
     return { items, total, page: Number(page), limit: limitNum, totalPages: Math.ceil(total / limitNum) };
@@ -23,9 +22,7 @@ const approvalService = {
     return approval;
   },
 
-  getPending: async (organizationId) => {
-    return await Approval.find({ organization: organizationId, status: 'pending' }).sort({ createdAt: -1 });
-  },
+  getPending: async (organizationId) => Approval.find({ organization: organizationId, status: 'pending' }).sort({ createdAt: -1 }),
 
   review: async (id, body, userId, organizationId) => {
     const { status, comments } = body;
@@ -36,11 +33,7 @@ const approvalService = {
     if (status === 'overridden' && comments) updateData.overrideReason = comments;
     if (status === 'overridden' && body.overrideReason) updateData.overrideReason = body.overrideReason;
 
-    const approval = await Approval.findOneAndUpdate(
-      { _id: id, organization: organizationId },
-      updateData,
-      { new: true }
-    );
+    const approval = await Approval.findOneAndUpdate({ _id: id, organization: organizationId }, updateData, { new: true });
 
     await new AuditLog({
       organization: organizationId,
@@ -51,12 +44,22 @@ const approvalService = {
       changes: { before: { status: existing.status }, after: { status, comments } }
     }).save();
 
+    if (approval.requester) {
+      await notificationService.notify(
+        approval.requester,
+        'approval',
+        `Approval ${status}: ${approval.title || approval.approvalId}`,
+        `Approval ${approval.approvalId} was ${status} by an authorized reviewer.`,
+        { type: 'Approval', id: approval._id },
+        organizationId,
+        { severity: status === 'rejected' ? 'high' : 'medium' }
+      );
+    }
+
     return approval;
   },
 
-  getMyApprovals: async (userId, organizationId) => {
-    return await Approval.find({ organization: organizationId, reviewer: userId }).sort({ createdAt: -1 });
-  }
+  getMyApprovals: async (userId, organizationId) => Approval.find({ organization: organizationId, reviewer: userId }).sort({ createdAt: -1 })
 };
 
 module.exports = approvalService;
