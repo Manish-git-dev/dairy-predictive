@@ -1,9 +1,18 @@
 const Inventory = require('../models/Inventory');
+const Product = require('../models/Product');
+const Batch = require('../models/Batch');
 const getPagination = require('../utils/pagination');
 const ApiError = require('../utils/ApiError');
+const { assertOrganizationReference } = require('../utils/organizationReferences');
+
+const validateReferences = async (data, organizationId) => {
+  await assertOrganizationReference(Product, data.product, organizationId, 'Product');
+  await assertOrganizationReference(Batch, data.batch, organizationId, 'Batch');
+};
 
 const inventoryService = {
   create: async (data, organizationId) => {
+    await validateReferences(data, organizationId);
     const item = new Inventory({ ...data, organization: organizationId });
     await item.save();
     return item;
@@ -28,6 +37,7 @@ const inventoryService = {
   },
 
   update: async (id, data, organizationId) => {
+    await validateReferences(data, organizationId);
     const item = await Inventory.findOneAndUpdate({ _id: id, organization: organizationId }, data, { new: true });
     if (!item) throw new ApiError(404, 'Inventory item not found');
     return item;
