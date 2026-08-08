@@ -25,4 +25,9 @@ const milkLotSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true }
 }, { timestamps: true });
 
+milkLotSchema.index({ organization: 1, createdAt: -1 });
+milkLotSchema.index({ organization: 1, collectionDate: -1 });
+milkLotSchema.index({ organization: 1, farmer: 1, createdAt: -1 });
+milkLotSchema.index({ organization: 1, status: 1, createdAt: -1 });
+
 module.exports = mongoose.model('MilkLot', milkLotSchema);
