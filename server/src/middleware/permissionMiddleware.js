@@ -12,7 +12,7 @@ const METHOD_ACTIONS = Object.freeze({
 
 const RESOURCE_ALIASES = Object.freeze({
   'collection-centres': 'collection',
-  'milk-lots': 'milk_lots',
+  'milk-lots': 'milkLots',
   'quality-tests': 'testing',
   'sla-rules': 'sla_rules',
   'preventive-rules': 'preventive_rules',
@@ -54,8 +54,9 @@ const hasPermission = (role, resource, action) => {
   if (!role || !resource || !action || !Array.isArray(role.permissions)) return false;
 
   return role.permissions.some((permission) => {
-    if (!permission || permission.resource !== resource) return false;
-    return Array.isArray(permission.actions) && permission.actions.includes(action);
+    if (!permission || !Array.isArray(permission.actions)) return false;
+    if (permission.resource !== resource && permission.resource !== '*') return false;
+    return permission.actions.includes(action);
   });
 };
 
@@ -89,9 +90,10 @@ const requirePermission = (resource, action) => {
       // A role assignment is only usable when the corresponding permission
       // exists in the active permission catalog.
       const permission = await Permission.findOne({
-        resource: resolvedResource,
-        action: resolvedAction,
-        isActive: true
+        $or: [
+          { resource: resolvedResource, action: resolvedAction, isActive: true },
+          { resource: '*', action: resolvedAction, isActive: true }
+        ]
       }).select('_id');
 
       if (!permission) {
