@@ -39,6 +39,10 @@ const errorHandler = (err, req, res, next) => {
     console.error(`[${requestId || 'no-request-id'}] ${err?.name || 'Error'}: ${err?.message || 'Unknown error'}`);
   }
 
+  if (error?.retryAfterSeconds) {
+    res.setHeader('Retry-After', String(error.retryAfterSeconds));
+  }
+
   const response = {
     success: false,
     error: {
