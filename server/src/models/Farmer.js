@@ -26,4 +26,8 @@ const farmerSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true }
 }, { timestamps: true });
 
+farmerSchema.index({ organization: 1, isActive: 1 });
+farmerSchema.index({ organization: 1, createdAt: -1 });
+farmerSchema.index({ organization: 1, phone: 1 });
+
 module.exports = mongoose.model('Farmer', farmerSchema);
