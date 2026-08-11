@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Prediction = require('../models/Prediction');
 const QualityTest = require('../models/QualityTest');
 const MilkLot = require('../models/MilkLot');
@@ -36,9 +37,11 @@ const buildPrediction = ({ type, probability, confidence, period, features, expl
 const generate = async (organizationId, userId, options = {}) => {
   const days = Math.min(Math.max(Number(options.days || DEFAULT_DAYS), 7), 90);
   const period = buildPeriod(days);
+  const dateRange = mongoose.trusted({ $gte: period.start, $lte: period.end });
+
   const [tests, lots, centres] = await Promise.all([
-    QualityTest.find({ organization: organizationId, createdAt: { $gte: period.start, $lte: period.end } }).lean(),
-    MilkLot.find({ organization: organizationId, createdAt: { $gte: period.start, $lte: period.end } }).lean(),
+    QualityTest.find({ organization: organizationId, createdAt: dateRange }).lean(),
+    MilkLot.find({ organization: organizationId, createdAt: dateRange }).lean(),
     CollectionCentre.find({ organization: organizationId, isActive: true }).lean()
   ]);
 
