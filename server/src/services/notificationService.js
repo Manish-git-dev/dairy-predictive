@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const getPagination = require('../utils/pagination');
 
@@ -19,7 +20,9 @@ const notificationService = {
     if (type) query.type = type;
     if (since) {
       const sinceDate = new Date(since);
-      if (!Number.isNaN(sinceDate.getTime())) query.createdAt = { $gt: sinceDate };
+      if (!Number.isNaN(sinceDate.getTime())) {
+        query.createdAt = mongoose.trusted({ $gt: sinceDate });
+      }
     }
 
     const items = await Notification.find(query).sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean();
