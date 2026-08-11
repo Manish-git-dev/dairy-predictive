@@ -63,10 +63,12 @@ const populateQuery = (query) => query
   .populate('sla.rule', 'name threshold unit escalationTime');
 
 const recordEvent = async (organizationId, userId, workflow, eventType, description) => {
+  // Workflow lifecycle events are not tied to a physical operational stage.
+  // OperationalEvent.stage is restricted to WORKFLOW_STAGES (collection, testing,
+  // chilling, etc.), so do not write the workflow status `in_progress` here.
   await OperationalEvent.create({
     organization: organizationId,
     eventType,
-    stage: 'in_progress',
     description,
     entity: { type: 'workflow', id: workflow._id },
     user: userId
