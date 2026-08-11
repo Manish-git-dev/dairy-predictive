@@ -7,6 +7,7 @@ export default function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
+  const isPublicRoute = ["/login", "/forgot-password", "/unauthorized"].includes(location.pathname);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -27,6 +28,10 @@ export default function AppShell() {
   useEffect(() => {
     setMobileNavOpen(false);
   }, [location.pathname]);
+
+  if (isPublicRoute) {
+    return <Outlet />;
+  }
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 antialiased">
